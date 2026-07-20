@@ -1,0 +1,15 @@
+{
+  "name": "Coleta Bip-a-Bip — Pet's Go",
+  "short_name": "Bip-a-Bip",
+  "description": "Inventário físico por leitura de código de barras — Pet's Go",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f1420",
+  "theme_color": "#0f1420",
+  "orientation": "any",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

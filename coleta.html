@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Coleta — Bip-a-Bip</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">🐾 Coleta Bip-a-Bip</div>
+  <div><a href="index.html" class="btn ghost" style="text-decoration:none">← Início</a></div>
+</div>
+
+<!-- VIEW 1: NOVA SESSÃO / CONTINUAR -->
+<div class="container" id="view-sessao">
+  <div class="card">
+    <h2>Sessões em andamento neste dispositivo</h2>
+    <div id="listaSessoesAbertas"><p style="color:var(--text-dim)">Nenhuma sessão em andamento.</p></div>
+  </div>
+
+  <div class="card">
+    <h2>Nova sessão</h2>
+    <div class="field">
+      <label for="inputOperador">Operador</label>
+      <input type="text" id="inputOperador" list="listaOperadores" placeholder="Nome do operador" autocomplete="off">
+      <datalist id="listaOperadores"></datalist>
+    </div>
+    <div class="field">
+      <label for="selectSetor">Setor</label>
+      <div class="row">
+        <select id="selectSetor"></select>
+        <button type="button" id="btnNovoSetor" class="ghost" style="flex:0 0 auto">+ novo setor</button>
+      </div>
+    </div>
+    <button id="btnIniciarSessao" class="primary" style="width:100%">Iniciar Sessão</button>
+  </div>
+</div>
+
+<!-- VIEW 2: CONTAGEM -->
+<div class="hidden" id="view-contagem">
+  <div class="contagem-header">
+    <div>Setor: <b id="hdrSetor"></b> · Operador: <b id="hdrOperador"></b></div>
+    <div id="hdrMaquina"></div>
+  </div>
+  <div id="bannerPausa" class="banner pausa hidden">⏸ Pausa marcada — a contagem continua normalmente</div>
+
+  <div class="container" style="max-width:640px">
+    <div class="field">
+      <input type="text" id="inputLeitura" class="leitura-input" inputmode="numeric" autocomplete="off" placeholder="Bipe o EAN…" autofocus>
+    </div>
+
+    <div class="card painel-atual" id="painelAtual">
+      <div class="ean-lido" id="painelEan">Aguardando primeira leitura…</div>
+      <div class="descricao" id="painelDescricao">—</div>
+      <div class="sku-linha" id="painelSku"></div>
+      <div class="qtd-item" id="painelQtd">0</div>
+      <div class="qtd-label">unidades deste item na sessão</div>
+    </div>
+    <div class="hidden aviso-repeticao" id="avisoRepeticao">⚠ Muitas leituras seguidas do mesmo item — confira se não é engano</div>
+
+    <div class="card hidden" id="cardSugestaoEan" style="border-color:var(--warn)">
+      <div>Você quis dizer <b id="sugestaoTexto"></b>?</div>
+      <div class="row" style="margin-top:0.6em">
+        <button id="btnIgnorarSugestao" class="ghost">Ignorar</button>
+        <button id="btnAceitarSugestao" class="primary">Aceitar</button>
+      </div>
+    </div>
+
+    <div class="contadores">
+      <div class="box"><div class="num" id="totalBips">0</div><div class="lbl">Total de bips</div></div>
+      <div class="box"><div class="num" id="totalUnicos">0</div><div class="lbl">Itens únicos</div></div>
+    </div>
+
+    <div class="row">
+      <button id="btnDesfazer" class="ghost">⌫ Desfazer última (Backspace)</button>
+      <button id="btnQtdManual" class="ghost">Qtd. manual (F2)</button>
+      <button id="btnPausa" class="ghost">Pausa (F9)</button>
+    </div>
+    <button id="btnFinalizar" class="danger" style="width:100%;margin-top:0.8em">Finalizar sessão (F12)</button>
+
+    <div class="atalhos-legenda">
+      <span><kbd>Enter</kbd> processa</span>
+      <span><kbd>Backspace</kbd> desfaz</span>
+      <span><kbd>F2</kbd> qtd. manual</span>
+      <span><kbd>F9</kbd> pausa</span>
+      <span><kbd>F12</kbd> finalizar</span>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW 3: FINALIZAÇÃO / CHECAGEM -->
+<div class="hidden" id="view-finalizacao">
+  <div class="container">
+    <div class="card">
+      <h2>Checagem antes de finalizar</h2>
+      <p style="color:var(--text-dim)">Confira os totais. Depois de finalizar, a sessão fica somente leitura.</p>
+      <div class="row">
+        <div class="box card" style="text-align:center"><div style="font-size:1.6rem;font-weight:800" id="chkTotalSkus">0</div><div style="color:var(--text-dim);font-size:0.8rem">SKUs distintos</div></div>
+        <div class="box card" style="text-align:center"><div style="font-size:1.6rem;font-weight:800" id="chkTotalUnidades">0</div><div style="color:var(--text-dim);font-size:0.8rem">Unidades totais</div></div>
+        <div class="box card" style="text-align:center"><div style="font-size:1.6rem;font-weight:800;color:var(--warn)" id="chkTotalDesconhecidos">0</div><div style="color:var(--text-dim);font-size:0.8rem">EANs desconhecidos</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Itens (SKU)</h3>
+      <div class="tabela-scroll">
+        <table>
+          <thead><tr><th>SKU</th><th>Descrição</th><th>Qtd.</th></tr></thead>
+          <tbody id="tabelaItens"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Desconhecidos (EAN não mapeado)</h3>
+      <div class="tabela-scroll">
+        <table>
+          <thead><tr><th>EAN</th><th>Qtd.</th></tr></thead>
+          <tbody id="tabelaDesconhecidos"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="btnVoltarContagem" class="ghost">← Voltar à contagem</button>
+      <button id="btnConfirmarFinalizar" class="primary">Finalizar e Exportar</button>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW 4: CONCLUÍDO -->
+<div class="hidden" id="view-concluido">
+  <div class="container">
+    <div class="card" style="text-align:center">
+      <h2>✅ Sessão finalizada e exportada</h2>
+      <p>Os 3 arquivos CSV desta sessão foram baixados. Envie-os para o dispositivo central para consolidação.</p>
+      <a href="index.html" class="btn primary" style="text-decoration:none;display:inline-block;margin-top:0.8em">Voltar ao início</a>
+    </div>
+  </div>
+</div>
+
+<div id="modalContainer"></div>
+<div id="toastContainer"></div>
+
+<script type="module" src="js/coleta.js"></script>
+</body>
+</html>

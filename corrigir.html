@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Corrigir Código — Bip-a-Bip</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">🔧 Corrigir Código</div>
+  <div><a href="consolidador.html" class="btn ghost" style="text-decoration:none">← Área do Gerente</a></div>
+</div>
+
+<div class="container" id="view-login">
+  <div class="card" style="max-width:420px;margin:2em auto">
+    <h2>🔒 Área do Gerente</h2>
+    <p id="loginInstrucao" style="color:var(--text-dim)">Carregando…</p>
+    <div class="field">
+      <label id="lblSenha">Senha</label>
+      <input type="password" id="inputSenha" autocomplete="off">
+    </div>
+    <div class="field hidden" id="campoConfirmarSenha">
+      <label>Confirmar senha</label>
+      <input type="password" id="inputSenhaConfirmar" autocomplete="off">
+    </div>
+    <button id="btnEntrar" class="primary" style="width:100%">Entrar</button>
+    <div id="loginErro" style="color:var(--danger);margin-top:0.8em"></div>
+  </div>
+</div>
+
+<div class="container hidden" id="view-corrigir">
+  <div class="card">
+    <h2>Sobre esta tela</h2>
+    <p style="color:var(--text-dim)">Quando o código de barras físico do produto é diferente do EAN que veio na nota fiscal (e por isso não bipa certo), use esta tela para mapear o EAN físico correto para o SKU já existente. Isso <b>não altera</b> o <code>base_produtos.csv</code> original — grava uma camada separada (<code>correcoes_ean.csv</code>) que é sempre consultada junto durante a contagem.</p>
+  </div>
+
+  <div class="card">
+    <h2>1. EAN físico divergente</h2>
+    <div class="field">
+      <label>Operador responsável por esta correção</label>
+      <input type="text" id="inputOperadorCorrecao" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Bipe ou digite o EAN físico do produto</label>
+      <input type="text" id="inputEanCorrigir" class="leitura-input" inputmode="numeric" autocomplete="off" placeholder="EAN físico…">
+    </div>
+    <div id="resultadoBusca"></div>
+  </div>
+
+  <div class="card hidden" id="cardBuscaProduto">
+    <h2>2. Encontre o produto correto</h2>
+    <div class="field">
+      <input type="text" id="inputBuscaProduto" placeholder="Buscar por SKU ou descrição…" autocomplete="off">
+    </div>
+    <div class="tabela-scroll" style="max-height:40vh">
+      <table>
+        <thead><tr><th>SKU</th><th>Descrição</th><th></th></tr></thead>
+        <tbody id="tabelaBuscaProduto"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Correções já feitas</h2>
+    <button id="btnExportarCorrecoes" class="ghost" style="margin-bottom:0.8em">Exportar correcoes_ean.csv</button>
+    <div class="tabela-scroll">
+      <table>
+        <thead><tr><th>EAN correto</th><th>SKU</th><th>Descrição</th><th>Data</th><th>Operador</th><th></th></tr></thead>
+        <tbody id="tabelaCorrecoes"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+<script type="module" src="js/corrigir.js"></script>
+</body>
+</html>

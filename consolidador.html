@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Consolidador — Bip-a-Bip</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">📊 Consolidador</div>
+  <div><a href="index.html" class="btn ghost" style="text-decoration:none">← Início</a></div>
+</div>
+
+<div class="container" id="view-login">
+  <div class="card" style="max-width:420px;margin:2em auto">
+    <h2>🔒 Área do Gerente</h2>
+    <p id="loginInstrucao" style="color:var(--text-dim)">Carregando…</p>
+    <div class="field">
+      <label id="lblSenha">Senha</label>
+      <input type="password" id="inputSenha" autocomplete="off">
+    </div>
+    <div class="field hidden" id="campoConfirmarSenha">
+      <label>Confirmar senha</label>
+      <input type="password" id="inputSenhaConfirmar" autocomplete="off">
+    </div>
+    <button id="btnEntrar" class="primary" style="width:100%">Entrar</button>
+    <div id="loginErro" style="color:var(--danger);margin-top:0.8em"></div>
+  </div>
+</div>
+
+<div class="container hidden" id="view-consolidador">
+  <div class="row" style="margin-bottom:1em">
+    <a href="corrigir.html" class="btn" style="text-decoration:none;text-align:center">🔧 Corrigir Código (EAN divergente)</a>
+  </div>
+  <div class="card">
+    <h2>1. Selecione os arquivos das sessões finalizadas</h2>
+    <p style="color:var(--text-dim)">Selecione os arquivos <code>.zip</code> exportados de cada sessão (um por sessão finalizada). Também aceita <code>*_sessao.csv</code> / <code>*_desconhecidos.csv</code> soltos, caso já tenham sido extraídos. Pode selecionar vários de uma vez.</p>
+    <input type="file" id="inputArquivos" multiple accept=".csv,.zip">
+    <div id="resumoArquivos" style="margin-top:0.8em;color:var(--text-dim)"></div>
+  </div>
+
+  <div class="card">
+    <h2>1b. (Opcional) Comparar com o estoque atual do Onepet</h2>
+    <p style="color:var(--text-dim)">Arquivo <code>estoque_onepet_atual.csv</code>, colunas <code>sku,qtd_sistema</code>.</p>
+    <input type="file" id="inputEstoqueOnepet" accept=".csv">
+    <div id="resumoOnepet" style="margin-top:0.8em;color:var(--text-dim)"></div>
+  </div>
+
+  <div class="card hidden" id="cardDivergencia" style="border-color:var(--warn)">
+    <h2>⚠ Divergência com o Onepet</h2>
+    <p style="color:var(--text-dim);font-size:0.82rem">Contado (este balanço) × qtd_sistema (Onepet). Ordenado pela maior diferença em R$ de custo.</p>
+    <div class="tabela-scroll">
+      <table>
+        <thead><tr><th>SKU</th><th>Qtd. contada</th><th>Qtd. Onepet</th><th>Diferença (qtd)</th><th>Custo unit. médio</th><th>Diferença (R$)</th></tr></thead>
+        <tbody id="tabelaDivergencia"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card hidden" id="cardFinanceiro" style="border-color:var(--accent)">
+    <h2>💰 Valorização do estoque contado</h2>
+    <p style="color:var(--text-dim);font-size:0.82rem">EANs desconhecidos (sem cadastro) não entram nestes valores — só contam em quantidade.</p>
+    <div style="text-align:center;padding:1em 0">
+      <div style="font-size:0.85rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em">Valor total do estoque a CUSTO</div>
+      <div style="font-size:2.6rem;font-weight:900;color:var(--accent)" id="valorTotalCusto">R$ 0,00</div>
+    </div>
+    <div style="text-align:center;padding-bottom:1em">
+      <div style="font-size:0.78rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em">Valor total do estoque a VENDA</div>
+      <div style="font-size:1.5rem;font-weight:700;color:var(--text-dim)" id="valorTotalVenda">R$ 0,00</div>
+    </div>
+    <h3>Por setor</h3>
+    <div class="tabela-scroll">
+      <table>
+        <thead><tr><th>Setor</th><th>Valor a custo</th><th>Valor a venda</th></tr></thead>
+        <tbody id="tabelaValorPorSetor"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card hidden" id="cardResumo">
+    <h2>2. Resumo da consolidação</h2>
+    <div class="row">
+      <div class="box card" style="text-align:center"><div style="font-size:1.6rem;font-weight:800" id="resSessoes">0</div><div style="color:var(--text-dim);font-size:0.8rem">Sessões</div></div>
+      <div class="box card" style="text-align:center"><div style="font-size:1.6rem;font-weight:800" id="resSkus">0</div><div style="color:var(--text-dim);font-size:0.8rem">SKUs distintos</div></div>
+      <div class="box card" style="text-align:center"><div style="font-size:1.6rem;font-weight:800" id="resUnidades">0</div><div style="color:var(--text-dim);font-size:0.8rem">Unidades totais</div></div>
+      <div class="box card" style="text-align:center"><div style="font-size:1.6rem;font-weight:800;color:var(--warn)" id="resDesconhecidos">0</div><div style="color:var(--text-dim);font-size:0.8rem">EANs desconhecidos</div></div>
+    </div>
+
+    <div class="tabela-scroll" style="margin-top:1em">
+      <table>
+        <thead><tr><th>Setor</th><th>Operador</th><th>Início</th><th>Fim</th><th>Itens únicos</th><th>Unidades</th><th>Dispositivo</th><th>Sessão</th><th>Arquivo</th></tr></thead>
+        <tbody id="tabelaAuditoria"></tbody>
+      </table>
+    </div>
+
+    <button id="btnGerar" class="primary" style="width:100%;margin-top:1.2em">3. Gerar e baixar os 4 arquivos finais</button>
+  </div>
+
+  <div class="card hidden" id="cardResumoIA">
+    <h2>🧠 Resumo Inteligente do Balanço</h2>
+    <p style="color:var(--text-dim);font-size:0.82rem">Monta um resumo executivo em texto com os números principais. A geração por IA (Claude) depende de uma conexão configurada — se não houver, o texto bruto já fica pronto pra copiar/baixar.</p>
+    <button id="btnResumoIA">Gerar Resumo Inteligente do Balanço</button>
+    <div id="statusResumoIA" style="margin-top:0.8em;color:var(--text-dim)"></div>
+    <textarea id="textoResumoIA" class="hidden" rows="14" readonly style="margin-top:0.8em;font-family:monospace;font-size:0.82rem"></textarea>
+    <div class="row hidden" id="acoesResumoIA" style="margin-top:0.8em">
+      <button id="btnCopiarResumoIA" class="ghost">Copiar texto</button>
+      <button id="btnBaixarResumoIA" class="ghost">Baixar .txt</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+<script type="module" src="js/consolidador.js"></script>
+</body>
+</html>

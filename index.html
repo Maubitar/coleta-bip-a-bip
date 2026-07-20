@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Coleta Bip-a-Bip — Pet's Go</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">🐾 Coleta Bip-a-Bip<small>Pet's Go — inventário físico</small></div>
+  <div id="infoDispositivo" style="font-size:0.8rem;color:var(--text-dim)"></div>
+</div>
+
+<div class="container">
+  <div class="card" id="cardStatus">
+    <h2>Status do dispositivo</h2>
+    <div id="statusBase">Carregando…</div>
+    <div id="statusSessoesAbertas"></div>
+  </div>
+
+  <div class="card hidden" id="cardLembreteBackup" style="border-color:var(--warn)">
+    <div class="row" style="align-items:center">
+      <div>⚠ Faz tempo que este dispositivo não tem um backup completo salvo.</div>
+      <a href="config.html" class="btn" style="flex:0 0 auto;text-decoration:none">Ir para Backup</a>
+    </div>
+  </div>
+
+  <div class="menu-grid">
+    <a class="menu-btn" href="coleta.html">
+      <div class="titulo">▶ Contagem (Coleta)</div>
+      <div class="desc">Iniciar ou continuar uma sessão de bipagem por setor.</div>
+    </a>
+    <a class="menu-btn" href="consolidador.html">
+      <div class="titulo">📊 Consolidador</div>
+      <div class="desc">Importar sessões finalizadas e gerar os arquivos finais para o Onepet.</div>
+    </a>
+    <a class="menu-btn" href="historico.html">
+      <div class="titulo">🕘 Histórico / Auditoria</div>
+      <div class="desc">Consultar sessões deste dispositivo, reexportar arquivos.</div>
+    </a>
+    <a class="menu-btn" href="config.html">
+      <div class="titulo">⚙ Configurações</div>
+      <div class="desc">Base de produtos, nome do dispositivo, backup, preferências.</div>
+    </a>
+  </div>
+</div>
+
+<footer class="rodape">Regra de ouro: o estoque físico contado é a verdade. Este app só conta e consolida — a aplicação no Onepet é sempre manual.</footer>
+
+<script type="module">
+import { contarProdutos, listarSessoes, getConfig } from './js/db.js';
+import { nomeDispositivoPadrao, formatarDataHora } from './js/util.js';
+
+const maquina = nomeDispositivoPadrao();
+document.getElementById('infoDispositivo').textContent = `Dispositivo: ${maquina}`;
+
+(async () => {
+  const ultimoBackup = await getConfig('ultimoBackupEm', null);
+  const umDiaMs = 24 * 60 * 60 * 1000;
+  if (!ultimoBackup || Date.now() - new Date(ultimoBackup).getTime() > umDiaMs) {
+    document.getElementById('cardLembreteBackup').classList.remove('hidden');
+  }
+
+  const total = await contarProdutos();
+  const statusBase = document.getElementById('statusBase');
+  if (total > 0) {
+    statusBase.innerHTML = `Base de produtos carregada: <b>${total}</b> EANs mapeados.`;
+  } else {
+    statusBase.innerHTML = `<span style="color:var(--warn)">Nenhuma base de produtos importada ainda.</span> Vá em Configurações para importar o base_produtos.csv.`;
+  }
+
+  const abertas = await listarSessoes({ maquina, status: 'aberta' });
+  const pausadas = await listarSessoes({ maquina, status: 'pausada' });
+  const emAndamento = [...abertas, ...pausadas];
+  const div = document.getElementById('statusSessoesAbertas');
+  if (emAndamento.length > 0) {
+    div.innerHTML = '<p style="margin-top:0.8em">Sessões em andamento neste dispositivo:</p>' +
+      emAndamento.map(s => `<div>• <b>${s.setor}</b> — ${s.operador} (iniciada em ${formatarDataHora(s.inicio)}) <a href="coleta.html?sessao=${s.id}">continuar →</a></div>`).join('');
+  }
+})();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

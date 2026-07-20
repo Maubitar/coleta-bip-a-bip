@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Configurações — Bip-a-Bip</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">⚙ Configurações</div>
+  <div><a href="index.html" class="btn ghost" style="text-decoration:none">← Início</a></div>
+</div>
+
+<div class="container">
+  <div class="card">
+    <h2>Base de produtos (base_produtos.csv)</h2>
+    <p style="color:var(--text-dim)">Colunas obrigatórias: <code>ean,sku,descricao,custo,venda</code>. Aceita <code>45,90</code> ou <code>45.90</code>. Importar substitui a base atual inteira. Custo e venda são sigilosos — só aparecem na Área do Gerente.</p>
+    <div id="statusBaseAtual" style="margin-bottom:0.8em"></div>
+    <input type="file" id="inputBaseProdutos" accept=".csv">
+  </div>
+
+  <div class="card">
+    <h2>Dispositivo</h2>
+    <div class="field">
+      <label>Nome deste dispositivo (aparece nos exports/auditoria)</label>
+      <div class="row">
+        <input type="text" id="inputNomeDispositivo">
+        <button id="btnSalvarDispositivo" class="primary" style="flex:0 0 auto">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Preferências de contagem</h2>
+    <div class="field">
+      <label>Modo padrão da quantidade manual (F2)</label>
+      <select id="selectModoQtd">
+        <option value="substituir">Substituir quantidade total</option>
+        <option value="somar">Somar à quantidade atual</option>
+      </select>
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="checkTravarSetor" style="width:auto" checked> Travar troca de setor durante a sessão (recomendado)</label>
+    </div>
+    <button id="btnSalvarPrefs" class="primary">Salvar preferências</button>
+  </div>
+
+  <div class="card">
+    <h2>Backup</h2>
+    <p style="color:var(--text-dim)" id="infoUltimoBackup"></p>
+    <button id="btnBackupAgora">Exportar backup completo agora (.json)</button>
+  </div>
+
+  <div class="card">
+    <h2>🔒 Senha da Área do Gerente</h2>
+    <p style="color:var(--text-dim)" id="statusSenhaGerente"></p>
+    <div class="field hidden" id="campoSenhaAtualConfig">
+      <label>Senha atual</label>
+      <input type="password" id="inputSenhaAtualConfig" autocomplete="off">
+    </div>
+    <div class="field">
+      <label id="lblSenhaNovaConfig">Nova senha</label>
+      <input type="password" id="inputSenhaNovaConfig" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Confirmar nova senha</label>
+      <input type="password" id="inputSenhaNovaConfirmarConfig" autocomplete="off">
+    </div>
+    <button id="btnSalvarSenhaConfig" class="primary">Salvar senha</button>
+    <div id="senhaConfigErro" style="color:var(--danger);margin-top:0.6em"></div>
+  </div>
+
+  <div class="card">
+    <h2>Setores personalizados</h2>
+    <div id="listaSetoresCustom" style="margin-bottom:0.8em"></div>
+    <div class="row">
+      <input type="text" id="inputNovoSetorConfig" placeholder="Nome do setor">
+      <button id="btnAdicionarSetorConfig" style="flex:0 0 auto">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+<script type="module" src="js/config.js"></script>
+</body>
+</html>

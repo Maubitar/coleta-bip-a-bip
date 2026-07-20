@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Histórico — Bip-a-Bip</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1420">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">🕘 Histórico / Auditoria</div>
+  <div><a href="index.html" class="btn ghost" style="text-decoration:none">← Início</a></div>
+</div>
+
+<div class="container" id="view-lista">
+  <div class="card">
+    <h2>Filtros</h2>
+    <div class="row">
+      <div class="field"><label>Setor</label><select id="filtroSetor"><option value="">Todos</option></select></div>
+      <div class="field"><label>Operador</label><select id="filtroOperador"><option value="">Todos</option></select></div>
+      <div class="field"><label>Status</label>
+        <select id="filtroStatus">
+          <option value="">Todos</option>
+          <option value="aberta">Aberta</option>
+          <option value="pausada">Pausada</option>
+          <option value="finalizada">Finalizada</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="tabela-scroll">
+      <table>
+        <thead><tr><th>Status</th><th>Setor</th><th>Operador</th><th>Início</th><th>Fim</th><th>Dispositivo</th><th></th></tr></thead>
+        <tbody id="tabelaSessoes"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="container hidden" id="view-detalhe">
+  <button id="btnVoltarLista" class="ghost">← Voltar à lista</button>
+  <div class="card" id="detalheResumo"></div>
+
+  <div class="card">
+    <h3>Itens (SKU)</h3>
+    <div class="tabela-scroll">
+      <table>
+        <thead><tr><th>SKU</th><th>Descrição</th><th>Qtd.</th></tr></thead>
+        <tbody id="detalheItens"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Desconhecidos</h3>
+    <div class="tabela-scroll">
+      <table>
+        <thead><tr><th>EAN</th><th>Qtd.</th></tr></thead>
+        <tbody id="detalheDesconhecidos"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Log bruto (somente leitura)</h3>
+    <div class="tabela-scroll">
+      <table>
+        <thead><tr><th>Timestamp</th><th>SKU/Desconhecido</th><th>Delta</th><th>Origem</th></tr></thead>
+        <tbody id="detalheLog"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <button id="btnReexportar" class="primary" style="width:100%">Reexportar os 3 arquivos desta sessão</button>
+</div>
+
+<div id="toastContainer"></div>
+<script type="module" src="js/historico.js"></script>
+</body>
+</html>
