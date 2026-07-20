@@ -1,6 +1,8 @@
 // Camada de dados — IndexedDB. Commit por leitura, sem exceção.
 // Stores:
-//   produtos  { ean (pk), sku, descricao, custo, venda }        index: sku
+//   produtos  { ean (pk), sku, descricao, custo, venda, estoque, grupoLinha, subGrupo }  index: sku
+//             — um SKU pode ter várias linhas (uma por EAN alternativo do Onepet), todas
+//               com os mesmos dados; 'estoque' vem da coluna Estoque do Onepet (qtd_sistema).
 //   correcoes { ean (pk = ean físico correto), sku, descricao, data_correcao, operador }  index: sku
 //              — camada adicional sobre 'produtos', nunca sobrescreve o base_produtos.csv original.
 //   sessoes   { id (pk), setor, operador, maquina, inicio, fim, status, modoQtdManualPadrao }  index: status, maquina
@@ -110,6 +112,9 @@ export async function importarProdutos(lista) {
         descricao: p.descricao ? String(p.descricao).trim() : '',
         custo: parseNumeroBR(p.custo),
         venda: parseNumeroBR(p.venda),
+        estoque: parseNumeroBR(p.estoque),
+        grupoLinha: p.grupoLinha ? String(p.grupoLinha).trim() : '',
+        subGrupo: p.subGrupo ? String(p.subGrupo).trim() : '',
       });
     }
     return lista.length;

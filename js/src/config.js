@@ -1,17 +1,23 @@
-import { importarProdutos, contarProdutos, getConfig, setConfig } from './db.js';
+import { importarProdutos, contarProdutos, obterTodosProdutos, getConfig, setConfig } from './db.js';
 import { parseCSV, lerArquivoComoTexto } from './csv.js';
 import { nomeDispositivoPadrao, formatarDataHora } from './util.js';
 import { toast, confirmar } from './ui.js';
 import { exportarBackupAgora } from './backup.js';
 import { senhaGerenteConfigurada, definirSenhaGerente, verificarSenhaGerente } from './auth.js';
+import { normalizarBaseProdutos } from './baseProdutos.js';
 
 const CHAVE_DISPOSITIVO_LS = 'bipabip_maquina_id';
 
-async function iniciar() {
+async function textoStatusBase() {
   const total = await contarProdutos();
-  document.getElementById('statusBaseAtual').innerHTML = total > 0
-    ? `Base atual: <b>${total}</b> EANs mapeados.`
-    : '<span style="color:var(--warn)">Nenhuma base importada.</span>';
+  if (total === 0) return '<span style="color:var(--warn)">Nenhuma base importada.</span>';
+  const produtos = await obterTodosProdutos();
+  const skusDistintos = new Set(produtos.map((p) => p.sku)).size;
+  return `Base atual: <b>${skusDistintos}</b> produtos (<b>${total}</b> códigos de barras mapeados, incluindo alternativos).`;
+}
+
+async function iniciar() {
+  document.getElementById('statusBaseAtual').innerHTML = await textoStatusBase();
 
   document.getElementById('inputNomeDispositivo').value = nomeDispositivoPadrao();
 
@@ -69,17 +75,27 @@ document.getElementById('inputBaseProdutos').addEventListener('change', async (e
   const texto = await lerArquivoComoTexto(file);
   const linhas = parseCSV(texto);
 
-  const invalidas = linhas.filter((l) => !l.ean || !l.sku);
-  if (linhas.length === 0) { toast('Arquivo vazio ou colunas inválidas (esperado: ean,sku,descricao,custo,venda).', 'erro'); return; }
-  const semPreco = linhas.filter((l) => l.ean && l.sku && (!l.custo || !l.venda)).length;
+  if (linhas.length === 0) { toast('Arquivo vazio.', 'erro'); ev.target.value = ''; return; }
 
-  const ok = await confirmar(`Importar ${linhas.length} produtos? Isso substitui totalmente a base atual.${invalidas.length ? ` (${invalidas.length} linha(s) sem ean/sku serão ignoradas)` : ''}${semPreco ? ` (${semPreco} linha(s) sem custo/venda — valor será 0)` : ''}`);
+  const resultado = normalizarBaseProdutos(linhas);
+  if (resultado.formato === 'desconhecido') {
+    toast('Não reconheci as colunas do arquivo. Esperado o export nativo do Onepet, ou o formato simples ean,sku,descricao,custo,venda.', 'erro');
+    ev.target.value = '';
+    return;
+  }
+
+  const skusDistintos = new Set(resultado.produtos.map((p) => p.sku)).size;
+  const nomeFormato = resultado.formato === 'onepet' ? 'Onepet (nativo)' : 'simples (ean,sku,descricao,custo,venda)';
+  let msg = `Formato detectado: ${nomeFormato}. Importar ${skusDistintos} produtos (${resultado.produtos.length} códigos de barras, incluindo alternativos)? Isso substitui totalmente a base atual.`;
+  if (resultado.ignoradosInativos > 0) msg += ` ${resultado.ignoradosInativos} linha(s) com status diferente de "Ativo" foram ignoradas.`;
+  if (resultado.ignoradosSemSku > 0) msg += ` ${resultado.ignoradosSemSku} linha(s) sem SKU/EAN foram ignoradas.`;
+
+  const ok = await confirmar(msg);
   if (!ok) { ev.target.value = ''; return; }
 
-  const validas = linhas.filter((l) => l.ean && l.sku);
-  await importarProdutos(validas);
-  toast(`${validas.length} produtos importados.`, '');
-  document.getElementById('statusBaseAtual').innerHTML = `Base atual: <b>${validas.length}</b> EANs mapeados.`;
+  await importarProdutos(resultado.produtos);
+  toast(`${skusDistintos} produtos importados (${resultado.produtos.length} códigos de barras).`, '');
+  document.getElementById('statusBaseAtual').innerHTML = await textoStatusBase();
   ev.target.value = '';
 });
 

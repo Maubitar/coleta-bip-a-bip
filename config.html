@@ -16,8 +16,8 @@
 
 <div class="container">
   <div class="card">
-    <h2>Base de produtos (base_produtos.csv)</h2>
-    <p style="color:var(--text-dim)">Colunas obrigatórias: <code>ean,sku,descricao,custo,venda</code>. Aceita <code>45,90</code> ou <code>45.90</code>. Importar substitui a base atual inteira. Custo e venda são sigilosos — só aparecem na Área do Gerente.</p>
+    <h2>Base de produtos</h2>
+    <p style="color:var(--text-dim)">Aceita o arquivo exportado direto do Onepet (sem precisar reformatar nada) ou uma planilha simples com colunas <code>ean,sku,descricao,custo,venda</code>. O formato é detectado automaticamente. Produtos com mais de um código de barras cadastrado no Onepet são reconhecidos por qualquer um deles. Importar substitui a base atual inteira. Custo e venda são sigilosos — só aparecem na Área do Gerente.</p>
     <div id="statusBaseAtual" style="margin-bottom:0.8em"></div>
     <input type="file" id="inputBaseProdutos" accept=".csv">
   </div>

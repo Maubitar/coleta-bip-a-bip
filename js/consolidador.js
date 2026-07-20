@@ -335,6 +335,12 @@
       t.objectStore("config").put({ key: chave, value: valor });
     });
   }
+  async function obterTodosProdutos() {
+    const db = await abrirDB();
+    return tx(db, ["produtos"], "readonly", async (t) => {
+      return await reqProm(t.objectStore("produtos").getAll());
+    });
+  }
 
   // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/auth.js
   var CHAVE_HASH = "senhaGerenteHash";
@@ -447,9 +453,31 @@
   var sessoesImportadas = [];
   var desconhecidosImportados = [];
   var estoqueOnepet = null;
+  var produtosPorSku = /* @__PURE__ */ new Map();
   var inputArquivos = document.getElementById("inputArquivos");
   var resumoArquivos = document.getElementById("resumoArquivos");
   var cardResumo = document.getElementById("cardResumo");
+  var produtosLocaisPromise = (async () => {
+    const produtos = await obterTodosProdutos();
+    produtos.forEach((p) => {
+      if (!produtosPorSku.has(p.sku)) {
+        produtosPorSku.set(p.sku, {
+          descricao: p.descricao || "",
+          grupoLinha: p.grupoLinha || "",
+          subGrupo: p.subGrupo || "",
+          estoque: p.estoque || 0
+        });
+      }
+    });
+    if (produtosPorSku.size > 0) {
+      estoqueOnepet = new Map([...produtosPorSku.entries()].map(([sku, info]) => [sku, info.estoque]));
+      document.getElementById("resumoOnepet").textContent = `Refer\xEAncia carregada automaticamente da base local: ${produtosPorSku.size} produtos com estoque do Onepet.`;
+    }
+  })();
+  function categoriaDoSku(sku) {
+    const info = produtosPorSku.get(sku);
+    return info && info.grupoLinha ? info.grupoLinha : "Sem categoria";
+  }
   function agregarPorSku() {
     const porSku = /* @__PURE__ */ new Map();
     sessoesImportadas.forEach((s) => {
@@ -466,6 +494,7 @@
   inputArquivos.addEventListener("change", async () => {
     const arquivos = Array.from(inputArquivos.files);
     if (arquivos.length === 0) return;
+    await produtosLocaisPromise;
     sessoesImportadas = [];
     desconhecidosImportados = [];
     const idsVistos = /* @__PURE__ */ new Set();
@@ -532,35 +561,46 @@
     const texto = await lerArquivoComoTexto(file);
     const linhas = parseCSV(texto);
     estoqueOnepet = new Map(linhas.filter((l) => l.sku).map((l) => [String(l.sku).trim(), Number(l.qtd_sistema) || 0]));
-    document.getElementById("resumoOnepet").textContent = `${estoqueOnepet.size} SKUs carregados do Onepet.`;
-    renderizarDivergencia();
+    document.getElementById("resumoOnepet").textContent = `Refer\xEAncia substitu\xEDda manualmente: ${estoqueOnepet.size} SKUs carregados do arquivo.`;
+    renderizarPrioridadeAjuste();
   });
-  function renderizarDivergencia() {
-    const card = document.getElementById("cardDivergencia");
-    if (!estoqueOnepet || sessoesImportadas.length === 0) {
-      card.classList.add("hidden");
-      return;
-    }
+  function calcularPrioridadeAjuste() {
     const porSku = agregarPorSku();
-    const todosSkus = /* @__PURE__ */ new Set([...porSku.keys(), ...estoqueOnepet.keys()]);
+    const todosSkus = /* @__PURE__ */ new Set([...porSku.keys(), ...estoqueOnepet ? estoqueOnepet.keys() : []]);
     const linhas = [...todosSkus].map((sku) => {
       const contado = porSku.get(sku);
       const qtdContada = contado ? contado.qtd : 0;
       const qtdSistema = estoqueOnepet.get(sku) ?? 0;
       const custoMedio = contado && contado.qtd > 0 ? contado.custoTotal / contado.qtd : 0;
       const diffQtd = qtdContada - qtdSistema;
-      return { sku, qtdContada, qtdSistema, diffQtd, custoMedio, diffValor: diffQtd * custoMedio };
+      return { sku, categoria: categoriaDoSku(sku), qtdContada, qtdSistema, diffQtd, custoMedio, diffValor: diffQtd * custoMedio };
     }).filter((l) => l.diffQtd !== 0);
     linhas.sort((a, b) => Math.abs(b.diffValor) - Math.abs(a.diffValor));
+    return linhas;
+  }
+  function renderizarPrioridadeAjuste() {
+    const card = document.getElementById("cardDivergencia");
+    if (!estoqueOnepet || sessoesImportadas.length === 0) {
+      card.classList.add("hidden");
+      return;
+    }
+    const linhas = calcularPrioridadeAjuste();
     card.classList.remove("hidden");
     document.getElementById("tabelaDivergencia").innerHTML = linhas.map((l) => `
     <tr>
-      <td>${l.sku}</td><td>${l.qtdContada}</td><td>${l.qtdSistema}</td>
-      <td style="color:${l.diffQtd < 0 ? "var(--danger)" : "var(--accent)"};font-weight:700">${l.diffQtd > 0 ? "+" : ""}${l.diffQtd}</td>
+      <td>${l.sku}</td><td>${l.categoria}</td><td>${l.qtdContada}</td><td>${l.qtdSistema}</td>
+      <td style="font-weight:700">${l.diffQtd > 0 ? "+" : ""}${l.diffQtd}</td>
       <td>${formatarMoeda(l.custoMedio)}</td>
-      <td style="color:${l.diffValor < 0 ? "var(--danger)" : "var(--accent)"};font-weight:700">${formatarMoeda(l.diffValor)}</td>
+      <td style="font-weight:700">${formatarMoeda(l.diffValor)}</td>
     </tr>
-  `).join("") || '<tr><td colspan="6" style="color:var(--text-dim)">Nenhuma diverg\xEAncia \u2014 tudo bate com o Onepet.</td></tr>';
+  `).join("") || '<tr><td colspan="7" style="color:var(--text-dim)">Tudo bate com o Onepet \u2014 nenhum ajuste priorit\xE1rio agora.</td></tr>';
+    const porCategoria = /* @__PURE__ */ new Map();
+    linhas.forEach((l) => {
+      const atual = porCategoria.get(l.categoria) || { categoria: l.categoria, impacto: 0 };
+      atual.impacto += l.diffValor;
+      porCategoria.set(l.categoria, atual);
+    });
+    document.getElementById("tabelaPrioridadeCategoria").innerHTML = [...porCategoria.values()].sort((a, b) => Math.abs(b.impacto) - Math.abs(a.impacto)).map((c) => `<tr><td>${c.categoria}</td><td style="font-weight:700">${formatarMoeda(c.impacto)}</td></tr>`).join("") || '<tr><td colspan="2" style="color:var(--text-dim)">Sem dados.</td></tr>';
   }
   function renderizarResumo() {
     if (sessoesImportadas.length === 0) {
@@ -586,27 +626,34 @@
     </tr>
   `).join("");
     renderizarValorizacao();
-    renderizarDivergencia();
+    renderizarPrioridadeAjuste();
     document.getElementById("cardResumoIA").classList.remove("hidden");
   }
   function renderizarValorizacao() {
     let totalCusto = 0;
     let totalVenda = 0;
     const porSetor = /* @__PURE__ */ new Map();
+    const porCategoria = /* @__PURE__ */ new Map();
     sessoesImportadas.forEach((s) => {
       s.itens.forEach((i) => {
         totalCusto += i.valorTotalCusto;
         totalVenda += i.valorTotalVenda;
-        const atual = porSetor.get(s.setor) || { setor: s.setor, custo: 0, venda: 0 };
-        atual.custo += i.valorTotalCusto;
-        atual.venda += i.valorTotalVenda;
-        porSetor.set(s.setor, atual);
+        const atualSetor = porSetor.get(s.setor) || { setor: s.setor, custo: 0, venda: 0 };
+        atualSetor.custo += i.valorTotalCusto;
+        atualSetor.venda += i.valorTotalVenda;
+        porSetor.set(s.setor, atualSetor);
+        const categoria = categoriaDoSku(i.sku);
+        const atualCat = porCategoria.get(categoria) || { categoria, custo: 0, venda: 0 };
+        atualCat.custo += i.valorTotalCusto;
+        atualCat.venda += i.valorTotalVenda;
+        porCategoria.set(categoria, atualCat);
       });
     });
     document.getElementById("cardFinanceiro").classList.remove("hidden");
     document.getElementById("valorTotalCusto").textContent = formatarMoeda(totalCusto);
     document.getElementById("valorTotalVenda").textContent = formatarMoeda(totalVenda);
     document.getElementById("tabelaValorPorSetor").innerHTML = [...porSetor.values()].sort((a, b) => b.custo - a.custo).map((s) => `<tr><td>${s.setor}</td><td>${formatarMoeda(s.custo)}</td><td>${formatarMoeda(s.venda)}</td></tr>`).join("") || '<tr><td colspan="3" style="color:var(--text-dim)">Sem dados.</td></tr>';
+    document.getElementById("tabelaValorPorCategoria").innerHTML = [...porCategoria.values()].sort((a, b) => b.custo - a.custo).map((c) => `<tr><td>${c.categoria}</td><td>${formatarMoeda(c.custo)}</td><td>${formatarMoeda(c.venda)}</td></tr>`).join("") || '<tr><td colspan="3" style="color:var(--text-dim)">Sem dados.</td></tr>';
   }
   document.getElementById("btnGerar").addEventListener("click", () => {
     if (sessoesImportadas.length === 0) {
@@ -690,25 +737,17 @@
     linhas.push(`- EANs desconhecidos (sem cadastro): ${totalPorEan.size}`);
     linhas.push("");
     if (estoqueOnepet) {
-      const todosSkus = /* @__PURE__ */ new Set([...porSku.keys(), ...estoqueOnepet.keys()]);
-      const divergencias = [...todosSkus].map((sku) => {
-        const contado = porSku.get(sku);
-        const qtdContada = contado ? contado.qtd : 0;
-        const qtdSistema = estoqueOnepet.get(sku) ?? 0;
-        const custoMedio = contado && contado.qtd > 0 ? contado.custoTotal / contado.qtd : 0;
-        const diffQtd = qtdContada - qtdSistema;
-        return { sku, qtdContada, qtdSistema, diffQtd, diffValor: diffQtd * custoMedio };
-      }).filter((l) => l.diffQtd !== 0).sort((a, b) => Math.abs(b.diffValor) - Math.abs(a.diffValor));
-      linhas.push(`TOP ${Math.min(10, divergencias.length)} DIVERG\xCANCIAS COM O ONEPET (de ${divergencias.length} no total)`);
-      if (divergencias.length === 0) {
-        linhas.push("- Nenhuma diverg\xEAncia \u2014 tudo bate com o Onepet.");
+      const prioridades = calcularPrioridadeAjuste();
+      linhas.push(`TOP ${Math.min(10, prioridades.length)} PRIORIDADES DE AJUSTE NO ONEPET (maior impacto financeiro, de ${prioridades.length} no total)`);
+      if (prioridades.length === 0) {
+        linhas.push("- Nenhum ajuste priorit\xE1rio \u2014 tudo bate com o Onepet.");
       } else {
-        divergencias.slice(0, 10).forEach((d) => {
-          linhas.push(`- SKU ${d.sku}: contado ${d.qtdContada} \xD7 Onepet ${d.qtdSistema} (diferen\xE7a ${d.diffQtd > 0 ? "+" : ""}${d.diffQtd} un., ${formatarMoeda(d.diffValor)})`);
+        prioridades.slice(0, 10).forEach((d) => {
+          linhas.push(`- SKU ${d.sku} (${d.categoria}): contado ${d.qtdContada} \xD7 Onepet ${d.qtdSistema} (${d.diffQtd > 0 ? "+" : ""}${d.diffQtd} un., impacto ${formatarMoeda(d.diffValor)})`);
         });
       }
     } else {
-      linhas.push("DIVERG\xCANCIAS COM O ONEPET: n\xE3o comparado (estoque_onepet_atual.csv n\xE3o foi importado).");
+      linhas.push("PRIORIDADE DE AJUSTE: sem refer\xEAncia do Onepet dispon\xEDvel (importe a base de produtos com a coluna Estoque, ou envie o CSV manual).");
     }
     linhas.push("");
     linhas.push(`DESCONHECIDOS (EAN sem cadastro, ${totalPorEan.size} distintos)`);
@@ -737,7 +776,7 @@
       status.textContent = "Sem conex\xE3o \u2014 resumo executivo por IA indispon\xEDvel agora. O texto bruto abaixo j\xE1 est\xE1 pronto.";
       return;
     }
-    status.textContent = "N\xFAmeros e diverg\xEAncias calculados abaixo. A transforma\xE7\xE3o em resumo executivo por IA ainda depende de um backend com a chave da Anthropic (n\xE3o configurado nesta vers\xE3o) \u2014 por ora, use o texto bruto.";
+    status.textContent = "N\xFAmeros e prioridades calculados abaixo. A transforma\xE7\xE3o em resumo executivo por IA ainda depende de um backend com a chave da Anthropic (n\xE3o configurado nesta vers\xE3o) \u2014 por ora, use o texto bruto.";
   });
   document.getElementById("btnCopiarResumoIA").addEventListener("click", async () => {
     const texto = document.getElementById("textoResumoIA").value;

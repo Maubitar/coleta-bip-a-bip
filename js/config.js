@@ -142,7 +142,10 @@
           sku: String(p.sku).trim(),
           descricao: p.descricao ? String(p.descricao).trim() : "",
           custo: parseNumeroBR(p.custo),
-          venda: parseNumeroBR(p.venda)
+          venda: parseNumeroBR(p.venda),
+          estoque: parseNumeroBR(p.estoque),
+          grupoLinha: p.grupoLinha ? String(p.grupoLinha).trim() : "",
+          subGrupo: p.subGrupo ? String(p.subGrupo).trim() : ""
         });
       }
       return lista.length;
@@ -152,6 +155,12 @@
     const db = await abrirDB();
     return tx(db, ["produtos"], "readonly", async (t) => {
       return await reqProm(t.objectStore("produtos").count());
+    });
+  }
+  async function obterTodosProdutos() {
+    const db = await abrirDB();
+    return tx(db, ["produtos"], "readonly", async (t) => {
+      return await reqProm(t.objectStore("produtos").getAll());
     });
   }
   async function exportarBancoCompleto() {
@@ -342,11 +351,88 @@
     return hash === hashArmazenado;
   }
 
+  // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/baseProdutos.js
+  var COLUNAS_ONEPET = ["C\xF3d", "C\xF3digo de barras", "Nome", "Pre\xE7o Tabela", "Custo", "Estoque", "Status"];
+  function detectarFormatoBase(linhas) {
+    if (!linhas || linhas.length === 0) return "desconhecido";
+    const colunas = Object.keys(linhas[0]);
+    if (COLUNAS_ONEPET.every((c) => colunas.includes(c))) return "onepet";
+    if (["ean", "sku"].every((c) => colunas.includes(c))) return "simples";
+    return "desconhecido";
+  }
+  function normalizarOnepet(linhas) {
+    const produtos = [];
+    let ignoradosInativos = 0;
+    let ignoradosSemSku = 0;
+    for (const l of linhas) {
+      const status = (l["Status"] || "").trim();
+      if (status && status.toLowerCase() !== "ativo") {
+        ignoradosInativos++;
+        continue;
+      }
+      const sku = String(l["C\xF3d"] || "").trim();
+      if (!sku) {
+        ignoradosSemSku++;
+        continue;
+      }
+      const descricao = (l["Nome"] || "").trim();
+      const custo = parseNumeroBR(l["Custo"]);
+      const venda = parseNumeroBR(l["Pre\xE7o Tabela"]);
+      const estoque = parseNumeroBR(l["Estoque"]);
+      const grupoLinha = (l["Grupo linha"] || "").trim();
+      const subGrupo = (l["Sub grupo"] || "").trim();
+      const eans = [
+        l["C\xF3digo de barras"],
+        l["C\xF3digo de barras 2"],
+        l["C\xF3digo de barras 3"],
+        l["C\xF3digo de barras 4"]
+      ].map((e) => (e || "").trim()).filter(Boolean);
+      for (const ean of eans) {
+        produtos.push({ ean, sku, descricao, custo, venda, estoque, grupoLinha, subGrupo });
+      }
+    }
+    return { produtos, ignoradosInativos, ignoradosSemSku };
+  }
+  function normalizarSimples(linhas) {
+    const produtos = [];
+    let ignoradosSemSku = 0;
+    for (const l of linhas) {
+      if (!l.ean || !l.sku) {
+        ignoradosSemSku++;
+        continue;
+      }
+      produtos.push({
+        ean: l.ean,
+        sku: l.sku,
+        descricao: l.descricao || "",
+        custo: parseNumeroBR(l.custo),
+        venda: parseNumeroBR(l.venda),
+        estoque: 0,
+        grupoLinha: "",
+        subGrupo: ""
+      });
+    }
+    return { produtos, ignoradosInativos: 0, ignoradosSemSku };
+  }
+  function normalizarBaseProdutos(linhas) {
+    const formato = detectarFormatoBase(linhas);
+    const totalLinhasOriginais = linhas.length;
+    if (formato === "onepet") return { formato, totalLinhasOriginais, ...normalizarOnepet(linhas) };
+    if (formato === "simples") return { formato, totalLinhasOriginais, ...normalizarSimples(linhas) };
+    return { formato: "desconhecido", totalLinhasOriginais, produtos: [], ignoradosInativos: 0, ignoradosSemSku: 0 };
+  }
+
   // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/config.js
   var CHAVE_DISPOSITIVO_LS = "bipabip_maquina_id";
-  async function iniciar() {
+  async function textoStatusBase() {
     const total = await contarProdutos();
-    document.getElementById("statusBaseAtual").innerHTML = total > 0 ? `Base atual: <b>${total}</b> EANs mapeados.` : '<span style="color:var(--warn)">Nenhuma base importada.</span>';
+    if (total === 0) return '<span style="color:var(--warn)">Nenhuma base importada.</span>';
+    const produtos = await obterTodosProdutos();
+    const skusDistintos = new Set(produtos.map((p) => p.sku)).size;
+    return `Base atual: <b>${skusDistintos}</b> produtos (<b>${total}</b> c\xF3digos de barras mapeados, incluindo alternativos).`;
+  }
+  async function iniciar() {
+    document.getElementById("statusBaseAtual").innerHTML = await textoStatusBase();
     document.getElementById("inputNomeDispositivo").value = nomeDispositivoPadrao();
     const modoQtd = await getConfig("modoQtdManualPadrao", "substituir");
     document.getElementById("selectModoQtd").value = modoQtd;
@@ -397,21 +483,30 @@
     if (!file) return;
     const texto = await lerArquivoComoTexto(file);
     const linhas = parseCSV(texto);
-    const invalidas = linhas.filter((l) => !l.ean || !l.sku);
     if (linhas.length === 0) {
-      toast("Arquivo vazio ou colunas inv\xE1lidas (esperado: ean,sku,descricao,custo,venda).", "erro");
+      toast("Arquivo vazio.", "erro");
+      ev.target.value = "";
       return;
     }
-    const semPreco = linhas.filter((l) => l.ean && l.sku && (!l.custo || !l.venda)).length;
-    const ok = await confirmar(`Importar ${linhas.length} produtos? Isso substitui totalmente a base atual.${invalidas.length ? ` (${invalidas.length} linha(s) sem ean/sku ser\xE3o ignoradas)` : ""}${semPreco ? ` (${semPreco} linha(s) sem custo/venda \u2014 valor ser\xE1 0)` : ""}`);
+    const resultado = normalizarBaseProdutos(linhas);
+    if (resultado.formato === "desconhecido") {
+      toast("N\xE3o reconheci as colunas do arquivo. Esperado o export nativo do Onepet, ou o formato simples ean,sku,descricao,custo,venda.", "erro");
+      ev.target.value = "";
+      return;
+    }
+    const skusDistintos = new Set(resultado.produtos.map((p) => p.sku)).size;
+    const nomeFormato = resultado.formato === "onepet" ? "Onepet (nativo)" : "simples (ean,sku,descricao,custo,venda)";
+    let msg = `Formato detectado: ${nomeFormato}. Importar ${skusDistintos} produtos (${resultado.produtos.length} c\xF3digos de barras, incluindo alternativos)? Isso substitui totalmente a base atual.`;
+    if (resultado.ignoradosInativos > 0) msg += ` ${resultado.ignoradosInativos} linha(s) com status diferente de "Ativo" foram ignoradas.`;
+    if (resultado.ignoradosSemSku > 0) msg += ` ${resultado.ignoradosSemSku} linha(s) sem SKU/EAN foram ignoradas.`;
+    const ok = await confirmar(msg);
     if (!ok) {
       ev.target.value = "";
       return;
     }
-    const validas = linhas.filter((l) => l.ean && l.sku);
-    await importarProdutos(validas);
-    toast(`${validas.length} produtos importados.`, "");
-    document.getElementById("statusBaseAtual").innerHTML = `Base atual: <b>${validas.length}</b> EANs mapeados.`;
+    await importarProdutos(resultado.produtos);
+    toast(`${skusDistintos} produtos importados (${resultado.produtos.length} c\xF3digos de barras).`, "");
+    document.getElementById("statusBaseAtual").innerHTML = await textoStatusBase();
     ev.target.value = "";
   });
   document.getElementById("btnSalvarDispositivo").addEventListener("click", () => {

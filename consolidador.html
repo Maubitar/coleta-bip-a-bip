@@ -43,19 +43,27 @@
   </div>
 
   <div class="card">
-    <h2>1b. (Opcional) Comparar com o estoque atual do Onepet</h2>
-    <p style="color:var(--text-dim)">Arquivo <code>estoque_onepet_atual.csv</code>, colunas <code>sku,qtd_sistema</code>.</p>
+    <h2>Referência de estoque do Onepet</h2>
+    <p style="color:var(--text-dim)">Se a base de produtos foi importada em Configurações (formato nativo do Onepet, com a coluna Estoque), a referência abaixo já é carregada automaticamente — não precisa fazer nada aqui. Só use o campo abaixo se quiser <b>substituir</b> essa referência por um arquivo à parte, sem reimportar a base toda: <code>estoque_onepet_atual.csv</code>, colunas <code>sku,qtd_sistema</code>.</p>
     <input type="file" id="inputEstoqueOnepet" accept=".csv">
-    <div id="resumoOnepet" style="margin-top:0.8em;color:var(--text-dim)"></div>
+    <div id="resumoOnepet" style="margin-top:0.8em;color:var(--text-dim)">Nenhuma referência carregada ainda — importe a base em Configurações ou envie o arquivo manual acima.</div>
   </div>
 
-  <div class="card hidden" id="cardDivergencia" style="border-color:var(--warn)">
-    <h2>⚠ Divergência com o Onepet</h2>
-    <p style="color:var(--text-dim);font-size:0.82rem">Contado (este balanço) × qtd_sistema (Onepet). Ordenado pela maior diferença em R$ de custo.</p>
+  <div class="card hidden" id="cardDivergencia" style="border-color:var(--accent)">
+    <h2>🎯 Prioridade de Ajuste no Onepet</h2>
+    <p style="color:var(--text-dim);font-size:0.82rem">O estoque do Onepet é sabidamente impreciso — é por isso que o balanço físico existe. Números grandes aqui são o resultado normal e esperado de contar o estoque físico de verdade. Esta lista é uma ferramenta para decidir <b>por onde começar</b> a aplicar os ajustes, ordenada do maior para o menor impacto financeiro (contado × preço de custo).</p>
+    <h3>Por SKU</h3>
     <div class="tabela-scroll">
       <table>
-        <thead><tr><th>SKU</th><th>Qtd. contada</th><th>Qtd. Onepet</th><th>Diferença (qtd)</th><th>Custo unit. médio</th><th>Diferença (R$)</th></tr></thead>
+        <thead><tr><th>SKU</th><th>Categoria</th><th>Qtd. contada</th><th>Qtd. Onepet</th><th>Diferença (qtd)</th><th>Custo unit. médio</th><th>Impacto financeiro (R$)</th></tr></thead>
         <tbody id="tabelaDivergencia"></tbody>
+      </table>
+    </div>
+    <h3 style="margin-top:1em">Por categoria</h3>
+    <div class="tabela-scroll">
+      <table>
+        <thead><tr><th>Categoria (Grupo linha)</th><th>Impacto financeiro (R$)</th></tr></thead>
+        <tbody id="tabelaPrioridadeCategoria"></tbody>
       </table>
     </div>
   </div>
@@ -76,6 +84,13 @@
       <table>
         <thead><tr><th>Setor</th><th>Valor a custo</th><th>Valor a venda</th></tr></thead>
         <tbody id="tabelaValorPorSetor"></tbody>
+      </table>
+    </div>
+    <h3 style="margin-top:1em">Por categoria</h3>
+    <div class="tabela-scroll">
+      <table>
+        <thead><tr><th>Categoria (Grupo linha)</th><th>Valor a custo</th><th>Valor a venda</th></tr></thead>
+        <tbody id="tabelaValorPorCategoria"></tbody>
       </table>
     </div>
   </div>
