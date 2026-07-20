@@ -1,24 +1,17 @@
 # Coleta Bip-a-Bip — Pet's Go
 
-Inventário físico por leitura de código de barras. Web/PWA, offline-first, sem instalação, sem dependências externas.
+Inventário físico por leitura de código de barras. Site estático, offline-first, sem instalação, sem dependências externas, sem servidor.
 
-## ⚠ Como rodar (leia antes de usar)
+## Como abrir (é só isso)
 
-Este app usa módulos JavaScript (ES Modules) e Service Worker para funcionar 100% offline depois do primeiro carregamento.
-**Por isso ele precisa ser aberto por um endereço `http://` — abrir o `index.html` direto com duplo-clique (`file://`) NÃO funciona no Chrome/Edge** (o navegador bloqueia os módulos por segurança).
+1. Copie a pasta `SOGI  BIP a BIP` inteira para cada PC coletor (pendrive, rede, etc.) — não precisa instalar nada nela.
+2. Dentro da pasta, dê **2 cliques** em `Criar atalho na Area de Trabalho.bat` (só uma vez, por PC). Isso cria um ícone **"Coleta Bip-a-Bip"** na Área de Trabalho.
+3. Do dia a dia em diante: **2 cliques no ícone** abre o app direto no navegador padrão. Não tem servidor, não tem janela de terminal, não precisa de Python nem de internet.
 
-Duas formas de rodar, escolha uma:
+Se preferir não usar o `.bat`, dá pra abrir manualmente: dois cliques direto no `index.html` dentro da pasta funciona igual (é só um atalho de conveniência a mais).
 
-### Opção A — Rede local / cada PC roda seu próprio servidor (mais simples, não depende de internet)
-1. Instale o [Python](https://www.python.org/downloads/) (marque "Add to PATH" na instalação) — só precisa fazer isso uma vez por PC.
-2. Copie a pasta `SOGI  BIP a BIP` para cada PC coletor (pendrive, rede, etc.).
-3. Dentro da pasta, dê duplo-clique em `iniciar.bat`.
-4. O navegador abre sozinho em `http://localhost:8000`. Clique em "Adicionar à tela inicial" / "Instalar app" para deixar com ícone, igual um app.
-5. Depois do primeiro carregamento, funciona 100% offline (mesmo sem o `iniciar.bat` mais tarde, contanto que o navegador já tenha em cache — mas o mais seguro é sempre abrir via `iniciar.bat`).
-
-### Opção B — Hospedar no GitHub Pages (recomendado para o padrão S.O.G.I., como os outros apps)
-Publica o app em uma URL pública (ex.: `https://petsgo.github.io/bip-a-bip/`), todos os PCs acessam essa URL uma vez (precisa de internet só na primeira vez), instalam como PWA, e depois funciona offline. Não depende de Python em cada PC.
-Isso exige criar/usar um repositório no GitHub e publicar os arquivos — é uma ação que fica disponível sob pedido, não foi feita automaticamente.
+### Publicar num endereço de internet (opcional, não necessário hoje)
+Também é possível publicar este app no GitHub Pages (endereço público, ex.: `https://petsgo.github.io/bip-a-bip/`) — nesse caso ele também funciona offline depois do primeiro acesso, via Service Worker. Isso é só uma alternativa para quando/se fizer sentido; hoje o fluxo padrão é o `file://` local acima, mais simples e sem depender de internet nenhuma hora.
 
 ## Fluxo de uso
 
@@ -48,6 +41,12 @@ Protege o Consolidador e o Corrigir Código (onde aparecem valores em R$ e mapea
 ## Por que os exports viram `.zip`
 
 Baixar 3-4 arquivos automaticamente de uma vez faz o Chrome bloquear os downloads depois do primeiro ("este site está tentando baixar vários arquivos"), e isso derrubaria silenciosamente parte dos dados. Por isso a exportação sempre gera **um único `.zip`** por ação. O Consolidador também aceita `.zip` diretamente (não precisa extrair antes).
+
+## Nota técnica (só para quem for mexer no código depois)
+
+O código-fonte editável fica em `js/src/*.js` (com `import`/`export`, organizado em módulos). Os arquivos que o navegador realmente carrega são `js/*.js` (ex.: `js/coleta.js`), gerados a partir de `js/src/` com [esbuild](https://esbuild.github.io/), num único arquivo por página, sem `import`/`export`. Isso existe porque o Chrome/Edge bloqueia (por CORS) o carregamento de módulos ES em páginas abertas via `file://` — sem esse empacotamento, o app não funcionaria com duplo-clique direto, e exigiria manter um servidor local rodando (o que já foi tentado e descartado por ser mais frágil e menos prático no dia a dia da loja). IndexedDB, que é toda a base de dados do app, funciona normalmente em `file://` — só os módulos ES é que não.
+
+Se editar algo em `js/src/`, é preciso rodar o build de novo para os arquivos em `js/*.js` refletirem a mudança (o `.bat` de abrir o app não faz isso sozinho). Quem for mexer no código pode pedir para o Claude Code refazer o empacotamento.
 
 ## Regra de ouro
 

@@ -1,5 +1,10 @@
 // Service Worker — cache do "app shell" para funcionamento 100% offline após o primeiro carregamento.
-const CACHE_NAME = 'bipabip-v2';
+// Só entra em ação quando o app é aberto via http(s) (ex.: GitHub Pages — ver README).
+// No uso local via file:// (duplo-clique, o padrão) o navegador nem permite registrar
+// Service Worker, e não faz falta: todos os arquivos já estão em disco, não tem "rede"
+// para cachear. Cada arquivo .js abaixo já é um pacote único (sem dependências soltas) —
+// gerado a partir de js/src/ (ver js/src/ para o código-fonte editável).
+const CACHE_NAME = 'bipabip-v3';
 const ARQUIVOS = [
   './',
   './index.html',
@@ -9,15 +14,7 @@ const ARQUIVOS = [
   './historico.html',
   './config.html',
   './css/style.css',
-  './js/util.js',
-  './js/db.js',
-  './js/csv.js',
-  './js/zip.js',
-  './js/auth.js',
-  './js/authGate.js',
-  './js/ui.js',
-  './js/backup.js',
-  './js/exportarSessao.js',
+  './js/index.js',
   './js/coleta.js',
   './js/consolidador.js',
   './js/corrigir.js',
