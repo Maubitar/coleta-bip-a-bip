@@ -595,6 +595,7 @@
   // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/coleta.js
   var JANELA_REPETICAO_MS = 1e4;
   var LIMITE_REPETICAO = 15;
+  var MAX_LINHAS_LISTA = 500;
   var SETORES_PADRAO = ["Dep\xF3sito", "Loja", "Banho e Tosa", "Outros"];
   var maquina = nomeDispositivoPadrao();
   var views = {
@@ -614,7 +615,62 @@
   var historicoLeiturasPorEan = /* @__PURE__ */ new Map();
   var indiceEansConhecidos = [];
   var sugestaoPendente = null;
+  var elementosListaItens = /* @__PURE__ */ new Map();
   var elInputLeitura = document.getElementById("inputLeitura");
+  var elListaItens = document.getElementById("listaItensCorpo");
+  var elListaItensVazia = document.getElementById("listaItensVazia");
+  function atualizarItemNaLista(chave, item) {
+    if (!chave) return;
+    const entrada = elementosListaItens.get(chave);
+    if (!item || item.qtd <= 0) {
+      if (entrada) {
+        entrada.linha.remove();
+        elementosListaItens.delete(chave);
+      }
+      atualizarListaVazia();
+      return;
+    }
+    const desconhecido = String(chave).startsWith("DESCONHECIDO:");
+    const textoDescricao = desconhecido ? `Desconhecido: ${chave.replace("DESCONHECIDO:", "")}` : item.descricao || `SKU ${item.sku}`;
+    if (entrada) {
+      entrada.elQtd.textContent = `${item.qtd}x`;
+      if (elListaItens.firstElementChild !== entrada.linha) {
+        elListaItens.insertBefore(entrada.linha, elListaItens.firstElementChild);
+      }
+      atualizarListaVazia();
+      return;
+    }
+    const linha = document.createElement("li");
+    linha.className = "item-lista-linha" + (desconhecido ? " desconhecido" : "");
+    linha.dataset.chave = chave;
+    const elQtd = document.createElement("span");
+    elQtd.className = "item-lista-qtd";
+    elQtd.textContent = `${item.qtd}x`;
+    const elDesc = document.createElement("span");
+    elDesc.className = "item-lista-desc";
+    elDesc.textContent = textoDescricao;
+    elDesc.title = textoDescricao;
+    linha.appendChild(elQtd);
+    linha.appendChild(elDesc);
+    elListaItens.insertBefore(linha, elListaItens.firstElementChild);
+    elementosListaItens.set(chave, { linha, elQtd });
+    if (elementosListaItens.size > MAX_LINHAS_LISTA) {
+      const ultimaLinha = elListaItens.lastElementChild;
+      if (ultimaLinha) {
+        elementosListaItens.delete(ultimaLinha.dataset.chave);
+        ultimaLinha.remove();
+      }
+    }
+    atualizarListaVazia();
+  }
+  function atualizarListaVazia() {
+    elListaItensVazia.classList.toggle("hidden", elementosListaItens.size > 0);
+  }
+  function limparListaItens() {
+    elListaItens.innerHTML = "";
+    elementosListaItens = /* @__PURE__ */ new Map();
+    atualizarListaVazia();
+  }
   async function popularSetores() {
     const custom = await getConfig("setoresCustom", []);
     const select = document.getElementById("selectSetor");
@@ -723,6 +779,20 @@
     itemAtualChave = ultimaLeituraValida ? ultimaLeituraValida.chave : null;
     const itens = await obterItensSessao(sessaoId);
     chavesComQtd = new Set(itens.filter((i) => i.qtd > 0).map((i) => i.chave));
+    limparListaItens();
+    const itensPorChave = new Map(itens.filter((i) => i.qtd > 0).map((i) => [i.chave, i]));
+    const ordemRecente = [];
+    const chavesVistas = /* @__PURE__ */ new Set();
+    for (let i = log.length - 1; i >= 0; i--) {
+      const chave = log[i].chave;
+      if (chave && !chavesVistas.has(chave) && itensPorChave.has(chave)) {
+        chavesVistas.add(chave);
+        ordemRecente.push(chave);
+      }
+    }
+    for (let i = ordemRecente.length - 1; i >= 0; i--) {
+      atualizarItemNaLista(ordemRecente[i], itensPorChave.get(ordemRecente[i]));
+    }
     historicoLeiturasPorEan = /* @__PURE__ */ new Map();
     sugestaoPendente = null;
     document.getElementById("cardSugestaoEan").classList.add("hidden");
@@ -823,6 +893,7 @@
         qtd: resultado.novaQtd
       });
       atualizarContadores();
+      atualizarItemNaLista(resultado.chave, { qtd: resultado.novaQtd, sku: resultado.sku, descricao: resultado.descricao });
       tocarBip(true);
       verificarRepeticaoAnormal(ean);
       if (resultado.desconhecido) {
@@ -872,6 +943,7 @@
       itemAtualChave = resultado.chaveDesfeita;
       if (item) atualizarPainelAtual(item);
       atualizarContadores();
+      atualizarItemNaLista(resultado.chaveDesfeita, item);
       toast("\xDAltima leitura desfeita.", "");
     } catch (e) {
       toast("Erro ao desfazer: " + e.message, "erro");
@@ -931,6 +1003,7 @@
     else chavesComQtd.delete(itemAtualChave);
     atualizarPainelAtual(item2);
     atualizarContadores();
+    atualizarItemNaLista(itemAtualChave, item2);
     toast("Quantidade manual aplicada.", "");
   }
   document.getElementById("btnQtdManual").addEventListener("click", abrirModalQtdManual);

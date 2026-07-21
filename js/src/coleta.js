@@ -10,6 +10,7 @@ import { exportarArquivosSessao } from './exportarSessao.js';
 
 const JANELA_REPETICAO_MS = 10000;
 const LIMITE_REPETICAO = 15;
+const MAX_LINHAS_LISTA = 500; // teto de segurança pro DOM, mesmo com milhares de itens únicos numa sessão
 
 const SETORES_PADRAO = ['Depósito', 'Loja', 'Banho e Tosa', 'Outros'];
 const maquina = nomeDispositivoPadrao();
@@ -35,8 +36,80 @@ let itemAtualChave = null;
 let historicoLeiturasPorEan = new Map(); // ean -> [timestamps]
 let indiceEansConhecidos = []; // [{ean, sku, descricao}] — base + correções, carregado 1x por sessão
 let sugestaoPendente = null; // { logIdDesconhecido, eanDigitado, sugestao: {ean, sku, descricao} }
+let elementosListaItens = new Map(); // chave -> {linha, elQtd} — referência direta, sem precisar buscar no DOM
 
 const elInputLeitura = document.getElementById('inputLeitura');
+const elListaItens = document.getElementById('listaItensCorpo');
+const elListaItensVazia = document.getElementById('listaItensVazia');
+
+// ---------------- Lista lateral de itens contados ----------------
+// Crítico pra performance: NUNCA redesenha a lista inteira. Cada bip atualiza/insere
+// uma única linha (referência direta via Map, sem querySelector). O item mais recente
+// sempre vai pro topo (moveNode existente = O(1), não recria). Um teto de segurança
+// remove a linha mais antiga do DOM se passar de MAX_LINHAS_LISTA itens únicos — os
+// dados continuam 100% corretos no IndexedDB, só a lista visível fica limitada.
+function atualizarItemNaLista(chave, item) {
+  if (!chave) return;
+  const entrada = elementosListaItens.get(chave);
+
+  if (!item || item.qtd <= 0) {
+    if (entrada) { entrada.linha.remove(); elementosListaItens.delete(chave); }
+    atualizarListaVazia();
+    return;
+  }
+
+  const desconhecido = String(chave).startsWith('DESCONHECIDO:');
+  const textoDescricao = desconhecido
+    ? `Desconhecido: ${chave.replace('DESCONHECIDO:', '')}`
+    : (item.descricao || `SKU ${item.sku}`);
+
+  if (entrada) {
+    entrada.elQtd.textContent = `${item.qtd}x`;
+    if (elListaItens.firstElementChild !== entrada.linha) {
+      elListaItens.insertBefore(entrada.linha, elListaItens.firstElementChild);
+    }
+    atualizarListaVazia();
+    return;
+  }
+
+  const linha = document.createElement('li');
+  linha.className = 'item-lista-linha' + (desconhecido ? ' desconhecido' : '');
+  linha.dataset.chave = chave;
+
+  const elQtd = document.createElement('span');
+  elQtd.className = 'item-lista-qtd';
+  elQtd.textContent = `${item.qtd}x`;
+
+  const elDesc = document.createElement('span');
+  elDesc.className = 'item-lista-desc';
+  elDesc.textContent = textoDescricao;
+  elDesc.title = textoDescricao;
+
+  linha.appendChild(elQtd);
+  linha.appendChild(elDesc);
+  elListaItens.insertBefore(linha, elListaItens.firstElementChild);
+  elementosListaItens.set(chave, { linha, elQtd });
+
+  if (elementosListaItens.size > MAX_LINHAS_LISTA) {
+    const ultimaLinha = elListaItens.lastElementChild;
+    if (ultimaLinha) {
+      elementosListaItens.delete(ultimaLinha.dataset.chave);
+      ultimaLinha.remove();
+    }
+  }
+
+  atualizarListaVazia();
+}
+
+function atualizarListaVazia() {
+  elListaItensVazia.classList.toggle('hidden', elementosListaItens.size > 0);
+}
+
+function limparListaItens() {
+  elListaItens.innerHTML = '';
+  elementosListaItens = new Map();
+  atualizarListaVazia();
+}
 
 // ---------------- VIEW: NOVA / CONTINUAR SESSÃO ----------------
 
@@ -144,6 +217,25 @@ async function entrarNaSessao(sessaoId) {
 
   const itens = await obterItensSessao(sessaoId);
   chavesComQtd = new Set(itens.filter((i) => i.qtd > 0).map((i) => i.chave));
+
+  // Popula a lista lateral na ordem de "mais recente primeiro", derivada do log —
+  // uma passada única no carregamento da sessão, não afeta o caminho quente do bip.
+  limparListaItens();
+  const itensPorChave = new Map(itens.filter((i) => i.qtd > 0).map((i) => [i.chave, i]));
+  const ordemRecente = [];
+  const chavesVistas = new Set();
+  for (let i = log.length - 1; i >= 0; i--) {
+    const chave = log[i].chave;
+    if (chave && !chavesVistas.has(chave) && itensPorChave.has(chave)) {
+      chavesVistas.add(chave);
+      ordemRecente.push(chave);
+    }
+  }
+  // Insere do menos recente pro mais recente, já que cada inserção vai pro topo —
+  // assim o resultado final fica com o mais recente no topo, igual ao uso normal.
+  for (let i = ordemRecente.length - 1; i >= 0; i--) {
+    atualizarItemNaLista(ordemRecente[i], itensPorChave.get(ordemRecente[i]));
+  }
 
   historicoLeiturasPorEan = new Map();
   sugestaoPendente = null;
@@ -262,6 +354,7 @@ async function processarLeitura(eanBruto) {
       descricao: resultado.descricao, qtd: resultado.novaQtd,
     });
     atualizarContadores();
+    atualizarItemNaLista(resultado.chave, { qtd: resultado.novaQtd, sku: resultado.sku, descricao: resultado.descricao });
     tocarBip(true);
     verificarRepeticaoAnormal(ean);
 
@@ -312,6 +405,7 @@ async function executarDesfazer() {
     itemAtualChave = resultado.chaveDesfeita;
     if (item) atualizarPainelAtual(item);
     atualizarContadores();
+    atualizarItemNaLista(resultado.chaveDesfeita, item);
     toast('Última leitura desfeita.', '');
   } catch (e) {
     toast('Erro ao desfazer: ' + e.message, 'erro');
@@ -366,6 +460,7 @@ async function abrirModalQtdManual() {
   if (item2.qtd > 0) chavesComQtd.add(itemAtualChave); else chavesComQtd.delete(itemAtualChave);
   atualizarPainelAtual(item2);
   atualizarContadores();
+  atualizarItemNaLista(itemAtualChave, item2);
   toast('Quantidade manual aplicada.', '');
 }
 document.getElementById('btnQtdManual').addEventListener('click', abrirModalQtdManual);
