@@ -430,6 +430,21 @@ export async function reconstruirPilhaDesfazer(sessaoId) {
   return pilha;
 }
 
+// ---------- RESET DE DADOS DO DISPOSITIVO ----------
+// Apaga apenas sessões/log/itens (contagens) DESTE dispositivo (esta base IndexedDB local).
+// NUNCA apaga produtos, correcoes ou config — isso é intencional (ver Área do Gerente).
+export async function resetarDadosDispositivo() {
+  const db = await abrirDB();
+  return tx(db, ['sessoes', 'log', 'itens'], 'readwrite', async (t) => {
+    const totalSessoes = await reqProm(t.objectStore('sessoes').count());
+    const totalLog = await reqProm(t.objectStore('log').count());
+    await reqProm(t.objectStore('sessoes').clear());
+    await reqProm(t.objectStore('log').clear());
+    await reqProm(t.objectStore('itens').clear());
+    return { sessoesApagadas: totalSessoes, leiturasApagadas: totalLog };
+  });
+}
+
 export async function exportarBancoCompleto() {
   const db = await abrirDB();
   const nomes = ['produtos', 'correcoes', 'sessoes', 'log', 'itens', 'config'];

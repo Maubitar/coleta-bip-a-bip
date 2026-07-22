@@ -1,11 +1,54 @@
 import { parseCSV, lerArquivoComoTexto, gerarCSV } from './csv.js';
 import { carimboArquivo, formatarMoeda, baixarArquivo } from './util.js';
-import { toast } from './ui.js';
+import { toast, abrirModal } from './ui.js';
 import { lerZip, criarZip } from './zip.js';
 import { montarGateSenha } from './authGate.js';
-import { obterTodosProdutos } from './db.js';
+import { obterTodosProdutos, contarProdutos, listarCorrecoes, resetarDadosDispositivo } from './db.js';
 
 montarGateSenha({ onLiberado: () => document.getElementById('view-consolidador').classList.remove('hidden') });
+
+// ---------- Resetar dados deste dispositivo ----------
+// Apaga só sessões/leituras (contagens) locais. Nunca toca em produtos/correções/config —
+// o gerente pode querer limpar uma contagem de teste sem perder a base recém-importada.
+const PALAVRA_CONFIRMACAO = 'APAGAR';
+
+document.getElementById('btnResetarDispositivo').addEventListener('click', async () => {
+  const [totalProdutos, correcoes] = await Promise.all([contarProdutos(), listarCorrecoes()]);
+
+  const confirmado = await abrirModal(`
+    <h3 style="color:var(--danger)">🗑️ Resetar dados deste dispositivo</h3>
+    <p style="color:var(--text-dim)">Isso apaga <b>todas as sessões de contagem</b> (finalizadas ou em andamento) e o log deste dispositivo — como se o app tivesse acabado de ser instalado.</p>
+    <p style="color:var(--text-dim)">A base de produtos (<b>${totalProdutos}</b> códigos), as correções de EAN (<b>${correcoes.length}</b>) e as configurações do dispositivo <b>não são apagadas</b>.</p>
+    <p style="color:var(--danger);font-weight:700">Esta ação não pode ser desfeita. Ela afeta só este dispositivo — outros PCs e arquivos já exportados não são alterados.</p>
+    <div class="field">
+      <label>Digite <b>${PALAVRA_CONFIRMACAO}</b> para confirmar</label>
+      <input type="text" id="inputConfirmarReset" autocomplete="off">
+    </div>
+    <div class="row" style="margin-top:1em">
+      <button data-acao="nao" class="ghost">Cancelar</button>
+      <button data-acao="sim" class="danger" disabled>Resetar agora</button>
+    </div>
+  `, {
+    onAbrir(overlay, fechar) {
+      const inputConfirmar = overlay.querySelector('#inputConfirmarReset');
+      const btnConfirmar = overlay.querySelector('[data-acao="sim"]');
+      inputConfirmar.addEventListener('input', () => {
+        btnConfirmar.disabled = inputConfirmar.value.trim() !== PALAVRA_CONFIRMACAO;
+      });
+      overlay.querySelector('[data-acao="nao"]').addEventListener('click', () => fechar(false));
+      btnConfirmar.addEventListener('click', () => { if (!btnConfirmar.disabled) fechar(true); });
+      inputConfirmar.focus();
+    }
+  });
+
+  if (!confirmado) return;
+
+  const resultado = await resetarDadosDispositivo();
+  document.getElementById('statusResetDispositivo').innerHTML =
+    `✅ Resetado em ${new Date().toLocaleString('pt-BR')}: <b>${resultado.sessoesApagadas}</b> sessão(ões) e <b>${resultado.leiturasApagadas}</b> leitura(s) de log apagadas. ` +
+    `Mantidos: base de produtos (${totalProdutos} códigos) e correções de EAN (${correcoes.length}).`;
+  toast('Dados de contagem deste dispositivo foram resetados.', '');
+});
 
 function lerArquivoComoArrayBuffer(file) {
   return new Promise((resolve, reject) => {

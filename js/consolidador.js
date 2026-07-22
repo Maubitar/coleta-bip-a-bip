@@ -126,6 +126,30 @@
       setTimeout(() => el.remove(), 250);
     }, 2600);
   }
+  function abrirModal(htmlConteudo, { onAbrir } = {}) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      overlay.innerHTML = `<div class="modal-box">${htmlConteudo}</div>`;
+      document.body.appendChild(overlay);
+      function fechar(valor) {
+        overlay.remove();
+        document.removeEventListener("keydown", onEsc, true);
+        resolve(valor);
+      }
+      function onEsc(ev) {
+        if (ev.key === "Escape") {
+          ev.preventDefault();
+          fechar(null);
+        }
+      }
+      document.addEventListener("keydown", onEsc, true);
+      overlay.addEventListener("click", (ev) => {
+        if (ev.target === overlay) fechar(null);
+      });
+      if (onAbrir) onAbrir(overlay, fechar);
+    });
+  }
 
   // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/zip.js
   var enc = new TextEncoder();
@@ -335,10 +359,34 @@
       t.objectStore("config").put({ key: chave, value: valor });
     });
   }
+  async function contarProdutos() {
+    const db = await abrirDB();
+    return tx(db, ["produtos"], "readonly", async (t) => {
+      return await reqProm(t.objectStore("produtos").count());
+    });
+  }
   async function obterTodosProdutos() {
     const db = await abrirDB();
     return tx(db, ["produtos"], "readonly", async (t) => {
       return await reqProm(t.objectStore("produtos").getAll());
+    });
+  }
+  async function listarCorrecoes() {
+    const db = await abrirDB();
+    return tx(db, ["correcoes"], "readonly", async (t) => {
+      const todas = await reqProm(t.objectStore("correcoes").getAll());
+      return todas.sort((a, b) => new Date(b.data_correcao) - new Date(a.data_correcao));
+    });
+  }
+  async function resetarDadosDispositivo() {
+    const db = await abrirDB();
+    return tx(db, ["sessoes", "log", "itens"], "readwrite", async (t) => {
+      const totalSessoes = await reqProm(t.objectStore("sessoes").count());
+      const totalLog = await reqProm(t.objectStore("log").count());
+      await reqProm(t.objectStore("sessoes").clear());
+      await reqProm(t.objectStore("log").clear());
+      await reqProm(t.objectStore("itens").clear());
+      return { sessoesApagadas: totalSessoes, leiturasApagadas: totalLog };
     });
   }
 
@@ -442,6 +490,41 @@
 
   // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/consolidador.js
   montarGateSenha({ onLiberado: () => document.getElementById("view-consolidador").classList.remove("hidden") });
+  var PALAVRA_CONFIRMACAO = "APAGAR";
+  document.getElementById("btnResetarDispositivo").addEventListener("click", async () => {
+    const [totalProdutos, correcoes] = await Promise.all([contarProdutos(), listarCorrecoes()]);
+    const confirmado = await abrirModal(`
+    <h3 style="color:var(--danger)">\u{1F5D1}\uFE0F Resetar dados deste dispositivo</h3>
+    <p style="color:var(--text-dim)">Isso apaga <b>todas as sess\xF5es de contagem</b> (finalizadas ou em andamento) e o log deste dispositivo \u2014 como se o app tivesse acabado de ser instalado.</p>
+    <p style="color:var(--text-dim)">A base de produtos (<b>${totalProdutos}</b> c\xF3digos), as corre\xE7\xF5es de EAN (<b>${correcoes.length}</b>) e as configura\xE7\xF5es do dispositivo <b>n\xE3o s\xE3o apagadas</b>.</p>
+    <p style="color:var(--danger);font-weight:700">Esta a\xE7\xE3o n\xE3o pode ser desfeita. Ela afeta s\xF3 este dispositivo \u2014 outros PCs e arquivos j\xE1 exportados n\xE3o s\xE3o alterados.</p>
+    <div class="field">
+      <label>Digite <b>${PALAVRA_CONFIRMACAO}</b> para confirmar</label>
+      <input type="text" id="inputConfirmarReset" autocomplete="off">
+    </div>
+    <div class="row" style="margin-top:1em">
+      <button data-acao="nao" class="ghost">Cancelar</button>
+      <button data-acao="sim" class="danger" disabled>Resetar agora</button>
+    </div>
+  `, {
+      onAbrir(overlay, fechar) {
+        const inputConfirmar = overlay.querySelector("#inputConfirmarReset");
+        const btnConfirmar = overlay.querySelector('[data-acao="sim"]');
+        inputConfirmar.addEventListener("input", () => {
+          btnConfirmar.disabled = inputConfirmar.value.trim() !== PALAVRA_CONFIRMACAO;
+        });
+        overlay.querySelector('[data-acao="nao"]').addEventListener("click", () => fechar(false));
+        btnConfirmar.addEventListener("click", () => {
+          if (!btnConfirmar.disabled) fechar(true);
+        });
+        inputConfirmar.focus();
+      }
+    });
+    if (!confirmado) return;
+    const resultado = await resetarDadosDispositivo();
+    document.getElementById("statusResetDispositivo").innerHTML = `\u2705 Resetado em ${(/* @__PURE__ */ new Date()).toLocaleString("pt-BR")}: <b>${resultado.sessoesApagadas}</b> sess\xE3o(\xF5es) e <b>${resultado.leiturasApagadas}</b> leitura(s) de log apagadas. Mantidos: base de produtos (${totalProdutos} c\xF3digos) e corre\xE7\xF5es de EAN (${correcoes.length}).`;
+    toast("Dados de contagem deste dispositivo foram resetados.", "");
+  });
   function lerArquivoComoArrayBuffer(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
