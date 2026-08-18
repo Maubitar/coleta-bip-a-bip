@@ -1,3 +1,4 @@
+import './swRegistro.js';
 import { listarSessoes, obterItensSessao, obterLogSessao } from './db.js';
 import { formatarDataHora } from './util.js';
 import { toast } from './ui.js';

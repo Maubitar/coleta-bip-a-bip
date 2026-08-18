@@ -1,3 +1,4 @@
+import './swRegistro.js';
 import { contarProdutos, listarSessoes, getConfig } from './db.js';
 import { nomeDispositivoPadrao, formatarDataHora } from './util.js';
 
@@ -28,12 +29,3 @@ document.getElementById('infoDispositivo').textContent = `Dispositivo: ${maquina
       emAndamento.map(s => `<div>• <b>${s.setor}</b> — ${s.operador} (iniciada em ${formatarDataHora(s.inicio)}) <a href="coleta.html?sessao=${s.id}">continuar →</a></div>`).join('');
   }
 })();
-
-// Só tem efeito quando hospedado em http(s) (ex.: GitHub Pages). Em file:// (uso local
-// normal deste app) o navegador não permite Service Worker — a chamada falha em silêncio
-// e não afeta em nada o funcionamento do app, que não depende dela.
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  });
-}

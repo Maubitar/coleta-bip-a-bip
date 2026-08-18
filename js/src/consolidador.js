@@ -1,3 +1,4 @@
+import './swRegistro.js';
 import { parseCSV, lerArquivoComoTexto, gerarCSV } from './csv.js';
 import { carimboArquivo, formatarMoeda, baixarArquivo } from './util.js';
 import { toast, abrirModal } from './ui.js';

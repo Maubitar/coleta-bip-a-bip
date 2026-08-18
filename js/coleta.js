@@ -1,5 +1,22 @@
 // Gerado automaticamente a partir de js/src/coleta.js — não editar direto. Ver js/src/.
 (() => {
+  // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/swRegistro.js
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
+        reg.update().catch(() => {
+        });
+      }).catch(() => {
+      });
+    });
+    let jaRecarregouPorAtualizacao = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (jaRecarregouPorAtualizacao) return;
+      jaRecarregouPorAtualizacao = true;
+      window.location.reload();
+    });
+  }
+
   // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/util.js
   function uuid() {
     if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();

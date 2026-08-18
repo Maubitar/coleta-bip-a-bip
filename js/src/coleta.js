@@ -1,3 +1,4 @@
+import './swRegistro.js';
 import {
   criarSessao, atualizarSessao, obterSessao, listarSessoes,
   registrarLeitura, definirQuantidadeManual, desfazerUltimaLeitura, registrarMarcador,

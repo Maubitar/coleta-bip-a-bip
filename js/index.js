@@ -1,5 +1,22 @@
 // Gerado automaticamente a partir de js/src/index.js — não editar direto. Ver js/src/.
 (() => {
+  // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/swRegistro.js
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
+        reg.update().catch(() => {
+        });
+      }).catch(() => {
+      });
+    });
+    let jaRecarregouPorAtualizacao = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (jaRecarregouPorAtualizacao) return;
+      jaRecarregouPorAtualizacao = true;
+      window.location.reload();
+    });
+  }
+
   // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/util.js
   function formatarDataHora(iso) {
     if (!iso) return "\u2014";
@@ -135,10 +152,4 @@
       div.innerHTML = '<p style="margin-top:0.8em">Sess\xF5es em andamento neste dispositivo:</p>' + emAndamento.map((s) => `<div>\u2022 <b>${s.setor}</b> \u2014 ${s.operador} (iniciada em ${formatarDataHora(s.inicio)}) <a href="coleta.html?sessao=${s.id}">continuar \u2192</a></div>`).join("");
     }
   })();
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("sw.js").catch(() => {
-      });
-    });
-  }
 })();

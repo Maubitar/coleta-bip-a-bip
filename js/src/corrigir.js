@@ -1,3 +1,4 @@
+import './swRegistro.js';
 import { buscarProdutoPorEanComCorrecao, obterTodosProdutos, salvarCorrecaoEan, listarCorrecoes } from './db.js';
 import { formatarDataHora, baixarArquivo, carimboArquivo } from './util.js';
 import { gerarCSV } from './csv.js';

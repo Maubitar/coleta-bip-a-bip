@@ -1,3 +1,4 @@
+import './swRegistro.js';
 import { importarProdutos, contarProdutos, obterTodosProdutos, getConfig, setConfig } from './db.js';
 import { parseCSV, lerArquivoComoTexto } from './csv.js';
 import { nomeDispositivoPadrao, formatarDataHora } from './util.js';
