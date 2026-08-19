@@ -97,6 +97,19 @@
       request.onerror = () => reject(request.error);
     });
   }
+  async function getConfig(chave, padrao = null) {
+    const db = await abrirDB();
+    return tx(db, ["config"], "readonly", async (t) => {
+      const r = await reqProm(t.objectStore("config").get(chave));
+      return r ? r.value : padrao;
+    });
+  }
+  async function setConfig(chave, valor) {
+    const db = await abrirDB();
+    return tx(db, ["config"], "readwrite", async (t) => {
+      t.objectStore("config").put({ key: chave, value: valor });
+    });
+  }
   async function listarSessoes({ maquina = null, status = null } = {}) {
     const db = await abrirDB();
     return tx(db, ["sessoes"], "readonly", async (t) => {
@@ -120,6 +133,21 @@
       return registros;
     });
   }
+  async function excluirSessao(sessaoId) {
+    const db = await abrirDB();
+    return tx(db, ["sessoes", "log", "itens"], "readwrite", async (t) => {
+      t.objectStore("sessoes").delete(sessaoId);
+      const logStore = t.objectStore("log");
+      const logIdx = logStore.index("sessaoId");
+      const logIds = await reqProm(logIdx.getAllKeys(IDBKeyRange.only(sessaoId)));
+      logIds.forEach((id) => logStore.delete(id));
+      const itensStore = t.objectStore("itens");
+      const itensIdx = itensStore.index("sessaoId");
+      const itensIds = await reqProm(itensIdx.getAllKeys(IDBKeyRange.only(sessaoId)));
+      itensIds.forEach((id) => itensStore.delete(id));
+      return { logApagados: logIds.length, itensApagados: itensIds.length };
+    });
+  }
 
   // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/ui.js
   function toast(mensagem, tipo = "") {
@@ -133,6 +161,30 @@
       el.classList.remove("show");
       setTimeout(() => el.remove(), 250);
     }, 2600);
+  }
+  function abrirModal(htmlConteudo, { onAbrir } = {}) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      overlay.innerHTML = `<div class="modal-box">${htmlConteudo}</div>`;
+      document.body.appendChild(overlay);
+      function fechar(valor) {
+        overlay.remove();
+        document.removeEventListener("keydown", onEsc, true);
+        resolve(valor);
+      }
+      function onEsc(ev) {
+        if (ev.key === "Escape") {
+          ev.preventDefault();
+          fechar(null);
+        }
+      }
+      document.addEventListener("keydown", onEsc, true);
+      overlay.addEventListener("click", (ev) => {
+        if (ev.target === overlay) fechar(null);
+      });
+      if (onAbrir) onAbrir(overlay, fechar);
+    });
   }
 
   // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/csv.js
@@ -296,11 +348,113 @@
     setTimeout(() => URL.revokeObjectURL(url), 1e4);
   }
 
+  // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/auth.js
+  var CHAVE_HASH = "senhaGerenteHash";
+  var CHAVE_SALT = "senhaGerenteSalt";
+  function paraHex(buffer) {
+    return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  function gerarSalt() {
+    const arr = crypto.getRandomValues(new Uint8Array(16));
+    return paraHex(arr.buffer);
+  }
+  async function hashSenha(senha, salt) {
+    const dados = new TextEncoder().encode(`${salt}:${senha}`);
+    const buffer = await crypto.subtle.digest("SHA-256", dados);
+    return paraHex(buffer);
+  }
+  async function senhaGerenteConfigurada() {
+    return await getConfig(CHAVE_HASH, null) !== null;
+  }
+  async function definirSenhaGerente(novaSenha) {
+    const salt = gerarSalt();
+    const hash = await hashSenha(novaSenha, salt);
+    await setConfig(CHAVE_SALT, salt);
+    await setConfig(CHAVE_HASH, hash);
+  }
+  async function verificarSenhaGerente(senha) {
+    const salt = await getConfig(CHAVE_SALT, null);
+    const hashArmazenado = await getConfig(CHAVE_HASH, null);
+    if (!salt || !hashArmazenado) return false;
+    const hash = await hashSenha(senha, salt);
+    return hash === hashArmazenado;
+  }
+
+  // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/authGate.js
+  function montarGateSenha({ viewLoginId = "view-login", onLiberado }) {
+    const viewLogin = document.getElementById(viewLoginId);
+    const inputSenha = document.getElementById("inputSenha");
+    const inputSenhaConfirmar = document.getElementById("inputSenhaConfirmar");
+    const campoConfirmarSenha = document.getElementById("campoConfirmarSenha");
+    const loginInstrucao = document.getElementById("loginInstrucao");
+    const lblSenha = document.getElementById("lblSenha");
+    const loginErro = document.getElementById("loginErro");
+    const btnEntrar = document.getElementById("btnEntrar");
+    let modoDefinirSenha = false;
+    async function iniciar() {
+      modoDefinirSenha = !await senhaGerenteConfigurada();
+      if (modoDefinirSenha) {
+        loginInstrucao.textContent = "Nenhuma senha definida ainda. Crie a senha de acesso \xE0 \xE1rea do Gerente (s\xF3 ela mostra valores em R$).";
+        lblSenha.textContent = "Nova senha";
+        campoConfirmarSenha.classList.remove("hidden");
+        btnEntrar.textContent = "Definir e entrar";
+      } else {
+        loginInstrucao.textContent = "Digite a senha do Gerente para continuar.";
+        lblSenha.textContent = "Senha";
+        campoConfirmarSenha.classList.add("hidden");
+        btnEntrar.textContent = "Entrar";
+      }
+      inputSenha.value = "";
+      inputSenhaConfirmar.value = "";
+      loginErro.textContent = "";
+      inputSenha.focus();
+    }
+    async function tentarEntrar() {
+      loginErro.textContent = "";
+      const senha = inputSenha.value;
+      if (!senha || senha.length < 4) {
+        loginErro.textContent = "A senha precisa ter pelo menos 4 caracteres.";
+        return;
+      }
+      if (modoDefinirSenha) {
+        if (senha !== inputSenhaConfirmar.value) {
+          loginErro.textContent = "As senhas n\xE3o conferem.";
+          return;
+        }
+        await definirSenhaGerente(senha);
+        viewLogin.classList.add("hidden");
+        onLiberado();
+        return;
+      }
+      const ok = await verificarSenhaGerente(senha);
+      if (ok) {
+        viewLogin.classList.add("hidden");
+        onLiberado();
+        return;
+      }
+      loginErro.textContent = "Senha incorreta.";
+      inputSenha.value = "";
+      inputSenha.focus();
+    }
+    btnEntrar.addEventListener("click", tentarEntrar);
+    inputSenha.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && campoConfirmarSenha.classList.contains("hidden")) tentarEntrar();
+    });
+    inputSenhaConfirmar.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") tentarEntrar();
+    });
+    iniciar();
+  }
+
   // ../../../../../../../../Desktop/SOGI  BIP a BIP/js/src/historico.js
   var todasSessoes = [];
   var sessaoSelecionada = null;
   var viewLista = document.getElementById("view-lista");
   var viewDetalhe = document.getElementById("view-detalhe");
+  montarGateSenha({ onLiberado: () => {
+    viewLista.classList.remove("hidden");
+    carregar();
+  } });
   async function carregar() {
     todasSessoes = (await listarSessoes({})).sort((a, b) => new Date(b.inicio) - new Date(a.inicio));
     const setores = [...new Set(todasSessoes.map((s) => s.setor))];
@@ -323,10 +477,14 @@
       <td>${formatarDataHora(s.inicio)}</td><td>${formatarDataHora(s.fim)}</td>
       <td>${s.maquina}</td>
       <td><button data-abrir="${s.id}" class="ghost">Abrir \u2192</button></td>
+      <td><button data-excluir="${s.id}" class="danger">\u{1F5D1}\uFE0F Excluir</button></td>
     </tr>
-  `).join("") || '<tr><td colspan="7" style="color:var(--text-dim)">Nenhuma sess\xE3o encontrada.</td></tr>';
+  `).join("") || '<tr><td colspan="8" style="color:var(--text-dim)">Nenhuma sess\xE3o encontrada.</td></tr>';
     document.querySelectorAll("[data-abrir]").forEach((btn) => {
       btn.addEventListener("click", () => abrirDetalhe(btn.getAttribute("data-abrir")));
+    });
+    document.querySelectorAll("[data-excluir]").forEach((btn) => {
+      btn.addEventListener("click", () => excluirSessaoDaLista(btn.getAttribute("data-excluir")));
     });
   }
   ["filtroSetor", "filtroOperador", "filtroStatus"].forEach((id) => {
@@ -364,5 +522,48 @@
     await exportarArquivosSessao(sessaoSelecionada);
     toast("Arquivos reexportados.", "");
   });
-  carregar();
+  var PALAVRA_CONFIRMACAO = "APAGAR";
+  async function confirmarExclusaoSessao(sessao) {
+    const avisoConsolidacao = sessao.status === "finalizada" ? '<p style="color:var(--danger)">Se esta sess\xE3o j\xE1 foi exportada (.zip) e importada no Consolidador, isso <b>n\xE3o desfaz</b> o que j\xE1 foi consolidado \u2014 s\xF3 remove o registro local deste dispositivo.</p>' : "";
+    const confirmado = await abrirModal(`
+    <h3 style="color:var(--danger)">\u{1F5D1}\uFE0F Excluir esta sess\xE3o</h3>
+    <p style="color:var(--text-dim)">
+      <b>${sessao.setor}</b> \u2014 ${sessao.operador} (${formatarDataHora(sessao.inicio)}, status: ${sessao.status})
+    </p>
+    <p style="color:var(--text-dim)">Apaga a contagem e o log desta sess\xE3o espec\xEDfica. Nenhuma outra sess\xE3o, nem a base de produtos, \xE9 afetada.</p>
+    ${avisoConsolidacao}
+    <p style="color:var(--danger);font-weight:700">Esta a\xE7\xE3o n\xE3o pode ser desfeita.</p>
+    <div class="field">
+      <label>Digite <b>${PALAVRA_CONFIRMACAO}</b> para confirmar</label>
+      <input type="text" id="inputConfirmarExclusao" autocomplete="off">
+    </div>
+    <div class="row" style="margin-top:1em">
+      <button data-acao="nao" class="ghost">Cancelar</button>
+      <button data-acao="sim" class="danger" disabled>Excluir sess\xE3o</button>
+    </div>
+  `, {
+      onAbrir(overlay, fechar) {
+        const inputConfirmar = overlay.querySelector("#inputConfirmarExclusao");
+        const btnConfirmar = overlay.querySelector('[data-acao="sim"]');
+        inputConfirmar.addEventListener("input", () => {
+          btnConfirmar.disabled = inputConfirmar.value.trim() !== PALAVRA_CONFIRMACAO;
+        });
+        overlay.querySelector('[data-acao="nao"]').addEventListener("click", () => fechar(false));
+        btnConfirmar.addEventListener("click", () => {
+          if (!btnConfirmar.disabled) fechar(true);
+        });
+        inputConfirmar.focus();
+      }
+    });
+    return confirmado;
+  }
+  async function excluirSessaoDaLista(sessaoId) {
+    const sessao = todasSessoes.find((s) => s.id === sessaoId);
+    if (!sessao) return;
+    const ok = await confirmarExclusaoSessao(sessao);
+    if (!ok) return;
+    await excluirSessao(sessaoId);
+    toast("Sess\xE3o exclu\xEDda.", "");
+    await carregar();
+  }
 })();

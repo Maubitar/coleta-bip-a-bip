@@ -14,7 +14,24 @@
   <div><a href="index.html" class="btn ghost" style="text-decoration:none">← Início</a></div>
 </div>
 
-<div class="container" id="view-lista">
+<div class="container" id="view-login">
+  <div class="card" style="max-width:420px;margin:2em auto">
+    <h2>🔒 Área do Gerente</h2>
+    <p id="loginInstrucao" style="color:var(--text-dim)">Carregando…</p>
+    <div class="field">
+      <label id="lblSenha">Senha</label>
+      <input type="password" id="inputSenha" autocomplete="off">
+    </div>
+    <div class="field hidden" id="campoConfirmarSenha">
+      <label>Confirmar senha</label>
+      <input type="password" id="inputSenhaConfirmar" autocomplete="off">
+    </div>
+    <button id="btnEntrar" class="primary" style="width:100%">Entrar</button>
+    <div id="loginErro" style="color:var(--danger);margin-top:0.8em"></div>
+  </div>
+</div>
+
+<div class="container hidden" id="view-lista">
   <div class="card">
     <h2>Filtros</h2>
     <div class="row">
@@ -34,7 +51,7 @@
   <div class="card">
     <div class="tabela-scroll">
       <table>
-        <thead><tr><th>Status</th><th>Setor</th><th>Operador</th><th>Início</th><th>Fim</th><th>Dispositivo</th><th></th></tr></thead>
+        <thead><tr><th>Status</th><th>Setor</th><th>Operador</th><th>Início</th><th>Fim</th><th>Dispositivo</th><th></th><th></th></tr></thead>
         <tbody id="tabelaSessoes"></tbody>
       </table>
     </div>

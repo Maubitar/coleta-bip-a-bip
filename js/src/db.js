@@ -430,6 +430,28 @@ export async function reconstruirPilhaDesfazer(sessaoId) {
   return pilha;
 }
 
+// Apaga só UMA sessão específica (e seu log/itens) — usado no Histórico/Auditoria.
+// Não afeta nenhuma outra sessão, nem produtos/correcoes/config. Não desfaz nada que já
+// tenha sido exportado/consolidado em outro dispositivo — é só o registro local.
+export async function excluirSessao(sessaoId) {
+  const db = await abrirDB();
+  return tx(db, ['sessoes', 'log', 'itens'], 'readwrite', async (t) => {
+    t.objectStore('sessoes').delete(sessaoId);
+
+    const logStore = t.objectStore('log');
+    const logIdx = logStore.index('sessaoId');
+    const logIds = await reqProm(logIdx.getAllKeys(IDBKeyRange.only(sessaoId)));
+    logIds.forEach((id) => logStore.delete(id));
+
+    const itensStore = t.objectStore('itens');
+    const itensIdx = itensStore.index('sessaoId');
+    const itensIds = await reqProm(itensIdx.getAllKeys(IDBKeyRange.only(sessaoId)));
+    itensIds.forEach((id) => itensStore.delete(id));
+
+    return { logApagados: logIds.length, itensApagados: itensIds.length };
+  });
+}
+
 // ---------- RESET DE DADOS DO DISPOSITIVO ----------
 // Apaga apenas sessões/log/itens (contagens) DESTE dispositivo (esta base IndexedDB local).
 // NUNCA apaga produtos, correcoes ou config — isso é intencional (ver Área do Gerente).
